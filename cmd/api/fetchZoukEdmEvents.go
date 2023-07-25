@@ -59,7 +59,7 @@ func scrapeZoukEdmEvents() []EdmEvent {
 		edmEvent.ClubName = clubName
 		venueTicketurl, _ := selection.Find(".uv-boxitem.noloader").Attr("href")
 		edmEvent.TicketUrl = venueTicketurl
-		edmEvent.EventDate = extractDate(venueTicketurl)
+		edmEvent.EventDate = extractEventDate(venueTicketurl)
 
 		edmEvents = append(edmEvents, edmEvent)
 	})

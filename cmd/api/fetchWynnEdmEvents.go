@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/gocolly/colly"
 	"net/http"
-	"regexp"
 	"strings"
 )
 
@@ -35,7 +34,7 @@ func scrapeWynnForEdmEvents() []EdmEvent {
 		edmEvent.ClubName = clubName
 		venueTicketurl, _ := selection.Find("a.uv-btn").Attr("href")
 		edmEvent.TicketUrl = venueTicketurl
-		edmEvent.EventDate = extractDate(venueTicketurl)
+		edmEvent.EventDate = extractEventDate(venueTicketurl)
 
 		edmEvents = append(edmEvents, edmEvent)
 	})
@@ -57,14 +56,6 @@ func scrapeWynnForEdmEvents() []EdmEvent {
 
 	c.Visit(scrapeurl)
 	return edmEvents
-}
-
-func extractDate(url string) string {
-	regexPattern := regexp.MustCompile(`\d+`)
-	extractedData := regexPattern.FindStringSubmatch(url)
-	extractedDigits := extractedData[0]
-	extractedDate := extractedDigits[len(extractedDigits)-8:]
-	return extractedDate
 }
 
 func filterUnwantedEvents(edmEvents []EdmEvent) []EdmEvent {

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 )
 
 // Define a writeJSON() helper for sending responses. This takes the destination
@@ -34,4 +35,12 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data any, h
 	w.Write(js)
 
 	return nil
+}
+
+func extractEventDate(url string) string {
+	regexPattern := regexp.MustCompile(`\d+`)
+	extractedData := regexPattern.FindStringSubmatch(url)
+	extractedDigits := extractedData[0]
+	extractedDate := extractedDigits[len(extractedDigits)-8:]
+	return extractedDate
 }
