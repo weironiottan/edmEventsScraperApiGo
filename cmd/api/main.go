@@ -60,6 +60,7 @@ func main() {
 	mux.HandleFunc("/v1/healthcheck", app.healthcheckHandler)
 	mux.HandleFunc("/v1/fetchWynnEdmEvents", app.fetchWynnEdmEvents)
 	mux.HandleFunc("/v1/fetchHakkasanGroupEdmEvents", app.fetchHakkasanGroupEdmEvents)
+	mux.HandleFunc("/v1/fetchZoukEdmEvents", app.fetchZoukEdmEvents)
 
 	// Declare a HTTP server with some sensible timeout settings, which listens on the
 	// port provided in the config struct and uses the servemux we created above as the
