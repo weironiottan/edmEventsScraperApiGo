@@ -8,14 +8,6 @@ import (
 	"strings"
 )
 
-type EdmEvent struct {
-	ClubName       string `json:"ClubName,omitempty"`
-	ArtistName     string `json:"ArtistName,omitempty"`
-	EventDate      string `json:"EventDate,omitempty"`
-	TicketUrl      string `json:"TicketUrl,omitempty"`
-	ArtistImageUrl string `json:"ArtistImageUrl,omitempty"`
-}
-
 // Declare a handler which writes a plain-text response with information about the
 // application status, operating environment and version.
 func (app *application) fetchWynnEdmEvents(w http.ResponseWriter, r *http.Request) {
