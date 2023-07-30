@@ -47,7 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error converting port to integer: %v", err)
 	}
-
+	addEdmEventsToLasVegasEdmEventsCollection()
 	// Read the value of the port and env command-line flags into the config struct. We
 	// default to using the port number 4000 and the environment "development" if no
 	// corresponding flags are provided.
