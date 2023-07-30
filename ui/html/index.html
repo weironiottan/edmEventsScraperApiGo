@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EDM Events API Server</title>
+</head>
+<body>
+    <h1>EDM Events API Server</h1>
+    <p>Welcome to the EDM Events API Server!! </p>
+    <h2>About The Project</h2>
+    <p>This Go API server scrapes clubs in Vegas that host edm events. I personally love EDM and I live close enough to Vegas to be able
+        see the different shows year round.  There was one problem though, it is really hard to find out what club in Vegas plays which  DJ.
+        As an example I really like Martin Garrix however I didn't know he was playing at a certain date in Vegas. It was not on his website,
+        neither on any of the other aggregate EDM Las Vegas Websites. I even tried a couple of APIs such as ticket master or bands in town.
+        Nothing consistently found all the events a DJ would play in Vegas, unless I physically visited all the different casino club websites</p>
+    <p>There had to be a better way. So basically I created scripts to scrape each of the club websites using Cheerio. I then collected all the relevant
+        info and sent it over to mongoDB, and then automatically re-check the websites every 24 hrs. I then created different API endpoints listed in the docs
+        in order to filter based on the different info needed for a potential website.</p>
+    <p>Currently the API collects info from the following clubs:
+        AYU Nights/Day, Zouk, XS, Omnia, Hakassan, Marquee, Wet Republic, Encore Beach Night/Day, Jewel, Liquid Pool Lounge </p>
+    <p>A current version of this server is deployed on a heroku app and you are more then welcome to access it and use it for any purpose. As of now
+        I don't have any restrictions for the API, meaning there are no API Keys needed just the url and the  right API Endpoint. This might change in the
+        future if there are too many requests and I run out of the free allotment on Heroku. However you could literally fork this project and deploy it to
+        Railway(This is where this currently hosted) and have your own custom server. The only thing I request is that you give credit where credit is due :)</p>
+    <p>Don't be shy, if you like it, send me an email! If you don't like it, send me an email! for anything else, send me an email!</p>
+    <h3>Getting Started:</h3>
+    <p>Please visit the repo for instructions and how to get started: </p>
+    <a href="https://github.com/weironiottan/edmEventsScraperApiGo") target="_blank">Repo Link</a>
+
+</body>
+</html>
