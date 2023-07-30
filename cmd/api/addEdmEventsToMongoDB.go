@@ -79,7 +79,6 @@ func (app *application) insertEdmEventsIntoLasVegasEdmEventsCollection(allEdmEve
 		Username: app.dbConfig.mongoUser,
 		Password: app.dbConfig.mongoPassword,
 	}
-
 	clientOptions.SetAuth(credential)
 
 	// Connect to MongoDB

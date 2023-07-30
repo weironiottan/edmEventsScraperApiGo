@@ -59,7 +59,13 @@ func scrapeZoukEdmEvents() []EdmEvent {
 		edmEvent.ClubName = clubName
 		venueTicketurl, _ := selection.Find(".uv-boxitem.noloader").Attr("href")
 		edmEvent.TicketUrl = venueTicketurl
-		edmEvent.EventDate = extractEventDate(venueTicketurl)
+		formattedDate, err := formatDateFrom_YYYYMMDD_toRFC3339(extractEventDate(venueTicketurl))
+
+		if err != nil {
+			fmt.Println("Error while parsing the date:", err)
+		}
+
+		edmEvent.EventDate = formattedDate
 
 		edmEvents = append(edmEvents, edmEvent)
 	})

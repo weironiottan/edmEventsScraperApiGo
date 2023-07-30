@@ -11,24 +11,15 @@ import (
 	"time"
 )
 
-// Declare a string containing the application version number. Later in the book we'll
-// generate this automatically at build time, but for now we'll just store the version
-// number as a hard-coded global constant.
 const version = "1.0.0"
 
-// Define a config struct to hold all the configuration settings for our application.
-// For now, the only configuration settings will be the network port that we want the
-// server to listen on, and the name of the current operating environment for the
-// application (development, staging, production, etc.). We will read in these
-// configuration settings from command-line flags when the application starts.
 type config struct {
 	port int
 	env  string
 }
 
 // Define an application struct to hold the dependencies for our HTTP handlers, helpers,
-// and middleware. At the moment this only contains a copy of the config struct and a
-// logger, but it will grow to include a lot more as our build progresses.
+// and middleware.
 type application struct {
 	config   config
 	logger   *log.Logger
@@ -71,11 +62,13 @@ func main() {
 	// Declare a new servemux and add a /v1/healthcheck route which dispatches requests
 	// to the healthcheckHandler method (which we will create in a moment).
 	mux := http.NewServeMux()
+	mux.HandleFunc("/home", app.home)
 	mux.HandleFunc("/v1/healthcheck", app.healthcheckHandler)
 	mux.HandleFunc("/v1/fetchWynnEdmEvents", app.fetchWynnEdmEvents)
 	mux.HandleFunc("/v1/fetchHakkasanGroupEdmEvents", app.fetchHakkasanGroupEdmEvents)
 	mux.HandleFunc("/v1/fetchZoukEdmEvents", app.fetchZoukEdmEvents)
 	mux.HandleFunc("/v1/addEdmEventsToLasVegasEdmEventsCollection", app.addEdmEventsToLasVegasEdmEventsCollection)
+	mux.HandleFunc("/", app.notFoundRoute)
 
 	// Declare a HTTP server with some sensible timeout settings, which listens on the
 	// port provided in the config struct and uses the servemux we created above as the

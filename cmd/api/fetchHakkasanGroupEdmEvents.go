@@ -59,7 +59,14 @@ func scrapeHakkasanGroupEdmEvents() []EdmEvent {
 			edmEvent := EdmEvent{}
 			edmEvent.ArtistName = hakassanEvent.VenueTitle
 			edmEvent.ClubName = hakassanEvent.Title
-			edmEvent.EventDate = hakassanEvent.Date
+
+			formattedDate, err := formatDateFrom_YYYY_MM_DD_toRFC3339(hakassanEvent.Date)
+
+			if err != nil {
+				fmt.Println("Error while parsing the date:", err)
+			}
+
+			edmEvent.EventDate = formattedDate
 			edmEvent.TicketUrl = fmt.Sprintf("https://events.taogroup.com/events/%v", hakassanEvent.Id)
 			edmEvents = append(edmEvents, edmEvent)
 		}
