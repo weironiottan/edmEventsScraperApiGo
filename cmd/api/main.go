@@ -83,6 +83,7 @@ func main() {
 
 	// Start the HTTP server.
 	logger.Printf("starting %s server on %s", cfg.env, srv.Addr)
+	scheduledTaskToGrabEdmEventsEvery24hrs()
 	err := srv.ListenAndServe()
 	logger.Fatal(err)
 }
