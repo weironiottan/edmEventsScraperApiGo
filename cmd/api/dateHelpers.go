@@ -16,9 +16,9 @@ func formatDateFrom_YYYYMMDD_toRFC3339(dateToFormat string) (string, error) {
 		return "", err
 	}
 
-	formatedDate := t.Format(time.RFC3339)
+	formattedDate := t.Format(time.RFC3339)
 
-	return formatedDate, nil
+	return formattedDate, nil
 }
 
 func formatDateFrom_YYYY_MM_DD_toRFC3339(dateToFormat string) (string, error) {
@@ -32,7 +32,7 @@ func formatDateFrom_YYYY_MM_DD_toRFC3339(dateToFormat string) (string, error) {
 		return "", err
 	}
 
-	formatedDate := t.Format(time.RFC3339)
+	formattedDate := t.Format(time.RFC3339)
 
-	return formatedDate, nil
+	return formattedDate, nil
 }
