@@ -85,7 +85,6 @@ func main() {
 	mux.HandleFunc("/v1/fetchWynnEdmEvents", app.fetchWynnEdmEvents)
 	mux.HandleFunc("/v1/fetchHakkasanGroupEdmEvents", app.fetchHakkasanGroupEdmEvents)
 	mux.HandleFunc("/v1/fetchZoukEdmEvents", app.fetchZoukEdmEvents)
-	mux.HandleFunc("/v1/addEdmEventsToLasVegasEdmEventsCollection", app.addEdmEventsToLasVegasEdmEventsCollection)
 	mux.HandleFunc("/", app.notFoundRoute)
 
 	// Declare a HTTP server with some sensible timeout settings, which listens on the
@@ -101,7 +100,7 @@ func main() {
 
 	// Start the HTTP server.
 	logger.Printf("starting %s server on %s", cfg.env, srv.Addr)
-	scheduledTaskToGrabEdmEventsEvery24hrs()
+	app.scheduledTaskToGrabEdmEventsEvery24hrs()
 	err = srv.ListenAndServe()
 	logger.Fatal(err)
 }
