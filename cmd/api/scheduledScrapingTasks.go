@@ -6,13 +6,13 @@ import (
 	"time"
 )
 
-func scheduledTaskToGrabEdmEventsEvery24hrs() {
+func (app *application) scheduledTaskToGrabEdmEventsEvery24hrs() {
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(1).Day().At("02:00").Do(func() {
 		fmt.Println("***********")
 		fmt.Println("Starting Scheduled Task")
 
-		getEdmEventsFromAllLasVegas()
+		app.addEdmEventsToLasVegasEdmEventsCollection()
 
 		fmt.Println("Finished Scheduled Task")
 		fmt.Println("***********")

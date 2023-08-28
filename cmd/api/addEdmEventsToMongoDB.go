@@ -5,31 +5,7 @@ import (
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"net/http"
 )
-
-func (app *application) addEdmEventsToLasVegasEdmEventsCollection(w http.ResponseWriter, r *http.Request) {
-	edmEvents := getEdmEventsFromAllLasVegas()
-	_, err := app.dbSnippets.DeleteMany(edmEvents)
-
-	if err != nil {
-		app.logger.Fatal("Error Deleting documents from collection: %v", err)
-	}
-
-	_, err = app.dbSnippets.InsertMany(edmEvents)
-
-	if err != nil {
-		app.logger.Fatal("Error Inserting documents from collection: %v", err)
-	}
-
-	//printOK := "Everything processed Successfully"
-	err = app.writeJSON(w, http.StatusOK, "Successfully Scrapped Data and Updated Mongo DB", nil)
-
-	if err != nil {
-		app.logger.Print(err)
-		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
-	}
-}
 
 type SnippetModelInterface interface {
 	InsertMany(edmEvents []EdmEvent) (*mongo.InsertManyResult, error)
@@ -70,4 +46,21 @@ func (m *SnippetModel) InsertMany(edmEvents []EdmEvent) (*mongo.InsertManyResult
 	}
 
 	return insertResult, nil
+}
+
+func (app *application) addEdmEventsToLasVegasEdmEventsCollection() {
+	edmEvents := getEdmEventsFromAllLasVegas()
+	_, err := app.dbSnippets.DeleteMany(edmEvents)
+
+	if err != nil {
+		app.logger.Fatal("Error Deleting documents from collection: %v", err)
+	}
+
+	_, err = app.dbSnippets.InsertMany(edmEvents)
+
+	if err != nil {
+		app.logger.Fatal("Error Inserting documents from collection: %v", err)
+	}
+
+	app.logger.Print("Successfully Scrapped Data and Updated Mongo DB")
 }
