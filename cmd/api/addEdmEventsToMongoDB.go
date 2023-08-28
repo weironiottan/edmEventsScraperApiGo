@@ -5,19 +5,25 @@ import (
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"log"
 	"net/http"
-	"time"
 )
 
 func (app *application) addEdmEventsToLasVegasEdmEventsCollection(w http.ResponseWriter, r *http.Request) {
-	allEdmEvents := getEdmEventsFromAllLasVegas()
-	app.deleteAllDocumentsInLasVegasEdmEventsCollection()
-	app.insertEdmEventsIntoLasVegasEdmEventsCollection(allEdmEvents)
+	edmEvents := getEdmEventsFromAllLasVegas()
+	_, err := app.dbSnippets.DeleteMany(edmEvents)
+
+	if err != nil {
+		app.logger.Fatal("Error Deleting documents from collection: %v", err)
+	}
+
+	_, err = app.dbSnippets.InsertMany(edmEvents)
+
+	if err != nil {
+		app.logger.Fatal("Error Inserting documents from collection: %v", err)
+	}
 
 	//printOK := "Everything processed Successfully"
-	err := app.writeJSON(w, http.StatusOK, "", nil)
+	err = app.writeJSON(w, http.StatusOK, "Successfully Scrapped Data and Updated Mongo DB", nil)
 
 	if err != nil {
 		app.logger.Print(err)
@@ -25,100 +31,43 @@ func (app *application) addEdmEventsToLasVegasEdmEventsCollection(w http.Respons
 	}
 }
 
-func (app *application) deleteAllDocumentsInLasVegasEdmEventsCollection() {
-	// Set connection options
-	clientOptions := options.Client().ApplyURI(app.dbConfig.mongoUrl)
-
-	// Set authentication options
-	credential := options.Credential{
-		Username: app.dbConfig.mongoUser,
-		Password: app.dbConfig.mongoPassword,
-	}
-
-	clientOptions.SetAuth(credential)
-
-	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	client, err := mongo.Connect(ctx, clientOptions)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Check the connection
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Get a handle to the "test" database and "persons" collection
-	collection := client.Database("edmEvents").Collection("lasVegasEdmEventsCollection")
-
-	fmt.Println("Connected to MongoDB!")
-	deleteResult, err := collection.DeleteMany(ctx, bson.M{})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Deleted documents count:", deleteResult.DeletedCount)
-
-	// Disconnect from MongoDB
-	defer cancel()
-	defer func() {
-		if err = client.Disconnect(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}()
+type SnippetModelInterface interface {
+	InsertMany(edmEvents []EdmEvent) (*mongo.InsertManyResult, error)
+	DeleteMany(edmEvents []EdmEvent) (*mongo.DeleteResult, error)
 }
 
-func (app *application) insertEdmEventsIntoLasVegasEdmEventsCollection(allEdmEvents []EdmEvent) {
-	// Set connection options
-	clientOptions := options.Client().ApplyURI(app.dbConfig.mongoUrl)
+// SnippetModel Define a SnippetModel type which wraps a MongoDB connection pool.
+type SnippetModel struct {
+	DB         *mongo.Client
+	collection *mongo.Collection
+}
 
-	// Set authentication options
-	credential := options.Credential{
-		Username: app.dbConfig.mongoUser,
-		Password: app.dbConfig.mongoPassword,
-	}
-	clientOptions.SetAuth(credential)
+func (m *SnippetModel) DeleteMany(edmEvents []EdmEvent) (*mongo.DeleteResult, error) {
+	// Grab the Collection from MongoDB
+	//collection := m.DB.Database("edmEvents").Collection("lasVegasEdmEventsCollection")
 
-	// Connect to MongoDB
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	client, err := mongo.Connect(ctx, clientOptions)
+	// Delete all Documents in the Collection
+	deleteResult, err := m.collection.DeleteMany(context.TODO(), bson.M{})
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
+	fmt.Println("Deleted documents count:", deleteResult.DeletedCount)
+	return deleteResult, nil
+}
 
-	// Check the connection
-	err = client.Ping(ctx, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+func (m *SnippetModel) InsertMany(edmEvents []EdmEvent) (*mongo.InsertManyResult, error) {
 
-	// Get a handle to the "test" database and "persons" collection
-	collection := client.Database("edmEvents").Collection("lasVegasEdmEventsCollection")
-
-	fmt.Println("Connected to MongoDB!")
-
-	// Convert slice of persons to a slice of documents
-	documents := make([]interface{}, len(allEdmEvents))
-	for i, edmEvent := range allEdmEvents {
+	// Convert slice of edmEvents to a slice of documents
+	documents := make([]interface{}, len(edmEvents))
+	for i, edmEvent := range edmEvents {
 		documents[i] = edmEvent
 	}
 
-	// Insert multiple documents
-	insertResult, err := collection.InsertMany(ctx, documents)
+	// InsertMany multiple documents
+	insertResult, err := m.collection.InsertMany(context.TODO(), documents)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	fmt.Println("Inserted document IDs:", insertResult.InsertedIDs)
-
-	// Disconnect from MongoDB
-	defer cancel()
-	defer func() {
-		if err = client.Disconnect(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	return insertResult, nil
 }
