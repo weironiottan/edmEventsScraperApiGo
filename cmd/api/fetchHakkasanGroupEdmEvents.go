@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+var hakassanUrl = "https://data.portaldriver.engineering/events.json"
+
 func (app *application) fetchHakkasanGroupEdmEvents(w http.ResponseWriter, r *http.Request) {
 
 	edmEvents := scrapeHakkasanGroupEdmEvents()
@@ -16,6 +18,7 @@ func (app *application) fetchHakkasanGroupEdmEvents(w http.ResponseWriter, r *ht
 
 	if err != nil {
 		app.logger.Print(err)
+
 		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
 	}
 
@@ -24,20 +27,20 @@ func (app *application) fetchHakkasanGroupEdmEvents(w http.ResponseWriter, r *ht
 func scrapeHakkasanGroupEdmEvents() []EdmEvent {
 	var hakassanGroupEdmEvents HakassanGroupEdmEvents
 	edmEvents := []EdmEvent{}
-
-	client := &http.Client{}
-
+	response, err := getHakassanGroupEdmEvents(hakassanUrl)
 	// Create a GET request
-	request, err := http.NewRequest("GET", "https://data.portaldriver.engineering/events.json", nil)
-	if err != nil {
-		fmt.Println("Error creating request:", err)
-	}
+	//client := &http.Client{}
+	//request, err := http.NewRequest("GET", "https://data.portaldriver.engineering/events.json", nil)
+	//if err != nil {
+	//	fmt.Println("Error creating request:", err)
+	//}
+	//
+	//// Send the request
+	//response, err := client.Do(request)
+	//if err != nil {
+	//	fmt.Println("Error sending request:", err)
+	//}
 
-	// Send the request
-	response, err := client.Do(request)
-	if err != nil {
-		fmt.Println("Error sending request:", err)
-	}
 	defer response.Body.Close()
 
 	// Read the response body
@@ -73,6 +76,24 @@ func scrapeHakkasanGroupEdmEvents() []EdmEvent {
 
 	}
 	return edmEvents
+}
+
+func getHakassanGroupEdmEvents(url string) (*http.Response, error) {
+	client := &http.Client{}
+	request, _ := http.NewRequest(http.MethodGet, url, nil)
+
+	response, err := client.Do(request)
+
+	if err != nil {
+		return response, fmt.Errorf("error sending request: %w", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return response, fmt.Errorf("status recieved was not a 200")
+	}
+
+	return response, nil
+
 }
 
 func extractJSONPData(jsonp string) string {
