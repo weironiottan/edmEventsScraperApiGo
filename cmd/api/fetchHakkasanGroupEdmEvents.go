@@ -28,18 +28,6 @@ func scrapeHakkasanGroupEdmEvents() []EdmEvent {
 	var hakassanGroupEdmEvents HakassanGroupEdmEvents
 	edmEvents := []EdmEvent{}
 	response, err := getHakassanGroupEdmEvents(hakassanUrl)
-	// Create a GET request
-	//client := &http.Client{}
-	//request, err := http.NewRequest("GET", "https://data.portaldriver.engineering/events.json", nil)
-	//if err != nil {
-	//	fmt.Println("Error creating request:", err)
-	//}
-	//
-	//// Send the request
-	//response, err := client.Do(request)
-	//if err != nil {
-	//	fmt.Println("Error sending request:", err)
-	//}
 
 	defer response.Body.Close()
 
@@ -60,9 +48,8 @@ func scrapeHakkasanGroupEdmEvents() []EdmEvent {
 	for _, hakassanEvent := range hakassanGroupEdmEvents.Data {
 		if strings.Contains(strings.ToLower(hakassanEvent.Location), location) {
 			edmEvent := EdmEvent{}
-			edmEvent.ArtistName = hakassanEvent.VenueTitle
-			edmEvent.ClubName = hakassanEvent.Title
-
+			edmEvent.ArtistName = strings.ToLower(hakassanEvent.Title)
+			edmEvent.ClubName = strings.ToLower(hakassanEvent.VenueTitle)
 			formattedDate, err := formatDateFrom_YYYY_MM_DD_toRFC3339(hakassanEvent.Date)
 
 			if err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gocolly/colly"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -55,8 +56,8 @@ func scrapeZoukEdmEvents() []EdmEvent {
 		edmEvent := EdmEvent{}
 		artistName := selection.Find("span.uv-event-name").Text()
 		clubName := selection.Find("a.venueurl").Text()
-		edmEvent.ArtistName = artistName
-		edmEvent.ClubName = clubName
+		edmEvent.ArtistName = strings.ToLower(artistName)
+		edmEvent.ClubName = strings.ToLower(clubName)
 		venueTicketurl, _ := selection.Find(".uv-boxitem.noloader").Attr("href")
 		edmEvent.TicketUrl = venueTicketurl
 		formattedDate, err := formatDateFrom_YYYYMMDD_toRFC3339(extractEventDate(venueTicketurl))
