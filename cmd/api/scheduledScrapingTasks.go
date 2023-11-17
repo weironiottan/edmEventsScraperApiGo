@@ -7,6 +7,8 @@ import (
 )
 
 func (app *application) scheduledTaskToGrabEdmEventsEvery24hrs() {
+	// This is only for testing purposes. Uncomment to run the scraper and post to mongo
+	//app.addEdmEventsToLasVegasEdmEventsCollection()
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(1).Day().At("02:00").Do(func() {
 		fmt.Println("***********")
