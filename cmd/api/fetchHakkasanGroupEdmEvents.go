@@ -48,6 +48,7 @@ func scrapeHakkasanGroupEdmEvents() []EdmEvent {
 	for _, hakassanEvent := range hakassanGroupEdmEvents.Data {
 		if strings.Contains(strings.ToLower(hakassanEvent.Location), location) {
 			edmEvent := EdmEvent{}
+			edmEvent.Id = getGUID()
 			edmEvent.ArtistName = strings.ToLower(hakassanEvent.Title)
 			edmEvent.ClubName = strings.ToLower(hakassanEvent.VenueTitle)
 			formattedDate, err := formatDateFrom_YYYY_MM_DD_toRFC3339(hakassanEvent.Date)

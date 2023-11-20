@@ -29,7 +29,8 @@ func scrapeWynnForEdmEvents() []EdmEvent {
 		selection := h.DOM
 		edmEvent := EdmEvent{}
 		artistName := selection.Find("span.uv-events-name").Text()
-		clubName := selection.Find("a.venueurl").Text()
+		clubName := selection.Find("span.venueurl").Text()
+		edmEvent.Id = getGUID()
 		edmEvent.ArtistName = strings.ToLower(artistName)
 		edmEvent.ClubName = strings.ToLower(clubName)
 		venueTicketurl, _ := selection.Find("a.uv-btn").Attr("href")
