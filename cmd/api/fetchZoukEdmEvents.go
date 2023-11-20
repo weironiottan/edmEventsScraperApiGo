@@ -10,13 +10,13 @@ import (
 
 /*
 Update: 07/24/2023
-Zouk added lazy loading to their event page, Sadly I can't hit the events url to get all the event since it only shows
-a subset of the events, There are two alternatives, either get puppeter or something similar to literally scroll down to load allvevents then scrape them
+Zouk added lazy loading to their event page, Sadly I can't hit the events url to getGUID all the event since it only shows
+a subset of the events, There are two alternatives, either getGUID puppeter or something similar to literally scroll down to load allvevents then scrape them
 OR
 fetch the same url that the lazy loaded feature on the event page does, I Implemented this method here, I figured it would be easier then installing a whole new package.
 ----
 
-I am fetching the url for each month possible, we start at the current month then we hit each month until we don't get any more eventData. I deprecated the older Zouk script,
+I am fetching the url for each month possible, we start at the current month then we hit each month until we don't getGUID any more eventData. I deprecated the older Zouk script,
 might come in useful if they decide to remove the lazy loading feature then this won't be needed
 */
 
@@ -56,6 +56,7 @@ func scrapeZoukEdmEvents() []EdmEvent {
 		edmEvent := EdmEvent{}
 		artistName := selection.Find("span.uv-event-name").Text()
 		clubName := selection.Find("a.venueurl").Text()
+		edmEvent.Id = getGUID()
 		edmEvent.ArtistName = strings.ToLower(artistName)
 		edmEvent.ClubName = strings.ToLower(clubName)
 		venueTicketurl, _ := selection.Find(".uv-boxitem.noloader").Attr("href")
