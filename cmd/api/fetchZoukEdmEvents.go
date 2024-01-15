@@ -96,6 +96,8 @@ func scrapeZoukEdmEvents() []EdmEvent {
 		year, monthNumber = incrementYearMonth(year, monthNumber)
 		c.Visit(scrapeurl)
 	}
+
+	fmt.Println("Scraping Completed for Zouk")
 	return edmEvents
 }
 
