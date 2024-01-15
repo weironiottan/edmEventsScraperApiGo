@@ -36,3 +36,22 @@ func formatDateFrom_YYYY_MM_DD_toRFC3339(dateToFormat string) (string, error) {
 
 	return formattedDate, nil
 }
+
+func isPastDate(date string) (bool, error) {
+	dateFormat := "2006-01-02T15:04:05Z"
+	t, err := time.Parse(dateFormat, date)
+	now := time.Now()
+
+	eventDate := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	currentDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, t.Location())
+
+	if err != nil {
+		return false, err
+	}
+
+	if eventDate.Before(currentDate) {
+		return true, nil
+	}
+
+	return false, nil
+}

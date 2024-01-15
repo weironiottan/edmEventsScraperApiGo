@@ -69,7 +69,14 @@ func scrapeZoukEdmEvents() []EdmEvent {
 
 		edmEvent.EventDate = formattedDate
 
-		edmEvents = append(edmEvents, edmEvent)
+		isPastDate, err := isPastDate(formattedDate)
+		if err != nil {
+			fmt.Println("Error while parsing the date:", err)
+		}
+
+		if !isPastDate {
+			edmEvents = append(edmEvents, edmEvent)
+		}
 	})
 
 	c.OnRequest(func(r *colly.Request) {

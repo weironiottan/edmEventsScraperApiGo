@@ -37,7 +37,7 @@ func Test_getHakassanGroupEdmEvents(t *testing.T) {
 
 		fmt.Println(err)
 		got := fmt.Sprintf("%s", err)
-		want := "status recieved was not a 200"
+		want := "status received was not a 200"
 
 		// Check the response status code
 		if response.StatusCode != http.StatusBadGateway {
