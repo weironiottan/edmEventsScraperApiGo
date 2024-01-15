@@ -83,7 +83,7 @@ func main() {
 	mux.HandleFunc("/home", app.home)
 	mux.HandleFunc("/v1/healthcheck", app.healthcheckHandler)
 	mux.HandleFunc("/v1/fetchWynnEdmEvents", app.fetchWynnEdmEvents)
-	mux.HandleFunc("/v1/fetchHakkasanGroupEdmEvents", app.fetchHakkasanGroupEdmEvents)
+	mux.HandleFunc("/v1/fetchTaoGroupHospitalityEdmEvents", app.fetchTaoGroupHospitalityEdmEvents)
 	mux.HandleFunc("/v1/fetchZoukEdmEvents", app.fetchZoukEdmEvents)
 	mux.HandleFunc("/", app.notFoundRoute)
 
