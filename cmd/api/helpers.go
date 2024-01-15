@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 // Define a writeJSON() helper for sending responses. This takes the destination
@@ -43,4 +44,25 @@ func extractEventDate(url string) string {
 	extractedDigits := extractedData[0]
 	extractedDate := extractedDigits[len(extractedDigits)-8:]
 	return extractedDate
+}
+
+func filterUnwantedEvents(edmEvents []EdmEvent, unWantedEvents []string) []EdmEvent {
+	var filteredEdmEvents []EdmEvent
+
+	for _, edmEvent := range edmEvents {
+		isWantedClubName := filterEvent(edmEvent.ClubName, unWantedEvents)
+		if isWantedClubName {
+			filteredEdmEvents = append(filteredEdmEvents, edmEvent)
+		}
+	}
+	return filteredEdmEvents
+}
+
+func filterEvent(str string, substrings []string) bool {
+	for _, substring := range substrings {
+		if strings.Contains(strings.ToLower(str), substring) {
+			return false
+		}
+	}
+	return true
 }

@@ -24,6 +24,7 @@ func scrapeWynnForEdmEvents() []EdmEvent {
 	edmEvents := []EdmEvent{}
 	scrapeurl := "https://www.wynnsocial.com/events/"
 	c := colly.NewCollector()
+	c.Wait()
 
 	c.OnHTML("div.eventitem ", func(h *colly.HTMLElement) {
 		selection := h.DOM
@@ -56,34 +57,13 @@ func scrapeWynnForEdmEvents() []EdmEvent {
 
 	c.OnScraped(func(r *colly.Response) {
 		fmt.Println(len(edmEvents), "NOT filtered events")
-		edmEvents = filterUnwantedEvents(edmEvents)
+		edmEvents = filterUnwantedEvents(edmEvents, []string{"wynn field club", "festival", "art of the wild"})
 		fmt.Println(len(edmEvents), "filtered events")
 
 	})
 
 	c.Visit(scrapeurl)
+
+	fmt.Println("Scraping Completed for Wynn")
 	return edmEvents
-}
-
-func filterUnwantedEvents(edmEvents []EdmEvent) []EdmEvent {
-	unWantedEvents := []string{"wynn field club", "festival", "art of the wild"}
-	var filteredEdmEvents []EdmEvent
-
-	for _, edmEvent := range edmEvents {
-		isWantedClubName := filterEvent(edmEvent.ClubName, unWantedEvents)
-		isWantedArtistName := filterEvent(edmEvent.ArtistName, unWantedEvents)
-		if isWantedClubName && isWantedArtistName {
-			filteredEdmEvents = append(filteredEdmEvents, edmEvent)
-		}
-	}
-	return filteredEdmEvents
-}
-
-func filterEvent(str string, substrings []string) bool {
-	for _, substring := range substrings {
-		if strings.Contains(strings.ToLower(str), substring) {
-			return false
-		}
-	}
-	return true
 }

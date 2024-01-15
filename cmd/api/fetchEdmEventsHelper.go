@@ -1,11 +1,11 @@
 package main
 
 func getEdmEventsFromAllLasVegas() []EdmEvent {
-	hakassanGroupEdmEvents := scrapeHakkasanGroupEdmEvents()
 	wynnEdmEvents := scrapeWynnForEdmEvents()
 	zoukEdmEvents := scrapeZoukEdmEvents()
-	allEdmEvents := append(hakassanGroupEdmEvents, wynnEdmEvents...)
-	allEdmEvents = append(allEdmEvents, zoukEdmEvents...)
+	taoGroupHospitalityEdmEvents := scrapeTaoGroupHospitalityEdmEvents()
+	allEdmEvents := append(zoukEdmEvents, wynnEdmEvents...)
+	allEdmEvents = append(allEdmEvents, taoGroupHospitalityEdmEvents...)
 	return allEdmEvents
 
 }
