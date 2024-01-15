@@ -85,6 +85,7 @@ func main() {
 	mux.HandleFunc("/v1/fetchWynnEdmEvents", app.fetchWynnEdmEvents)
 	mux.HandleFunc("/v1/fetchTaoGroupHospitalityEdmEvents", app.fetchTaoGroupHospitalityEdmEvents)
 	mux.HandleFunc("/v1/fetchZoukEdmEvents", app.fetchZoukEdmEvents)
+	mux.HandleFunc("/v1/fetchLivEdmEvents", app.fetchLivEdmEvents)
 	mux.HandleFunc("/", app.notFoundRoute)
 
 	// Declare a HTTP server with some sensible timeout settings, which listens on the
