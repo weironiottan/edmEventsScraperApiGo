@@ -58,7 +58,15 @@ func scrapeTaoGroupHospitalityEdmEvents() []EdmEvent {
 
 		edmEvent.EventDate = formattedDate
 		edmEvent.TicketUrl = taoGroupHospitalityEvent.Link
-		edmEvents = append(edmEvents, edmEvent)
+
+		isPastDate, err := isPastDate(formattedDate)
+		if err != nil {
+			fmt.Println("Error while parsing the date:", err)
+		}
+
+		if !isPastDate {
+			edmEvents = append(edmEvents, edmEvent)
+		}
 
 	}
 	fmt.Println(len(edmEvents), "NOT filtered events")
