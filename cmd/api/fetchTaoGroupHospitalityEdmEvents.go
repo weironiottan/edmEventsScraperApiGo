@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-var taoGroupHospitalityUrl = "https://taogroup.com/wp-json/wp/v2/events?per_page=500&filter[meta_key]=end_epoch&filter[meta_value]=1705283846&filter[meta_compare]=%3E=&filter[orderby]=meta_value_num&order=asc&filter[order]=ASC&event_city=81"
-
 func (app *application) fetchTaoGroupHospitalityEdmEvents(w http.ResponseWriter, r *http.Request) {
 	edmEvents := scrapeTaoGroupHospitalityEdmEvents()
 	err := app.writeJSON(w, http.StatusOK, edmEvents, nil)
@@ -23,51 +21,61 @@ func (app *application) fetchTaoGroupHospitalityEdmEvents(w http.ResponseWriter,
 }
 
 func scrapeTaoGroupHospitalityEdmEvents() []EdmEvent {
-	fmt.Println("Visting ", taoGroupHospitalityUrl)
+	hasEventItems := true
+	pageNumber := 1
 
 	var taoGroupHospitalityEdmEvents TaoGroupHospitalityEdmEvents
 	edmEvents := []EdmEvent{}
-	response, err := getTaoGroupHospitalityEdmEvents(taoGroupHospitalityUrl)
 
-	defer response.Body.Close()
-
-	// Read the response body
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		fmt.Println("Error reading response:", err)
-	}
-
-	err = json.Unmarshal(body, &taoGroupHospitalityEdmEvents)
-	if err != nil {
-		fmt.Println("Error:", err)
-	}
-
-	for _, taoGroupHospitalityEvent := range taoGroupHospitalityEdmEvents {
-
-		edmEvent := EdmEvent{}
-		edmEvent.Id = getGUID()
-		edmEvent.ArtistName = strings.ToLower(taoGroupHospitalityEvent.Acf.EventTitle.DisplayTitle)
-		formattedClubName := filterOutLasVegasFromTitle(taoGroupHospitalityEvent.Acf.EventVenue[0].PostTitle)
-		edmEvent.ClubName = formattedClubName
-		formattedDate := filterOutTimeFromDate(taoGroupHospitalityEvent.Acf.EventStartDate)
-		formattedDate, err := formatDateFrom_MM_DD_YYYY_toRFC3339(formattedDate)
-
+	for hasEventItems {
+		taoGroupHospitalityUrl := fmt.Sprintf("https://taogroup.com/wp-json/wp/v2/events?event_city%%5B%%5D=81&filter%%5Bmeta_compare%%5D=%%3E%%3D&filter%%5Bmeta_key%%5D=event_start_date&filter%%5Bmeta_value%%5D=1720422000000&filter%%5Border%%5D=asc&filter%%5Borderby%%5D=meta_value&page=%v&per_page=500", pageNumber)
+		fmt.Println("Visting ", taoGroupHospitalityUrl)
+		response, err := getTaoGroupHospitalityEdmEvents(taoGroupHospitalityUrl)
 		if err != nil {
-			fmt.Println("Error while parsing the date:", err)
+			hasEventItems = false
 		}
+		pageNumber++
 
-		edmEvent.EventDate = formattedDate
-		edmEvent.TicketUrl = taoGroupHospitalityEvent.Link
-
-		isPastDate, err := isPastDate(formattedDate)
+		// Read the response body
+		body, err := io.ReadAll(response.Body)
 		if err != nil {
-			fmt.Println("Error while parsing the date:", err)
+			fmt.Println("Error reading response:", err)
 		}
 
-		if !isPastDate {
-			edmEvents = append(edmEvents, edmEvent)
+		err = json.Unmarshal(body, &taoGroupHospitalityEdmEvents)
+		if err != nil {
+			fmt.Println("Error:", err)
 		}
 
+		defer response.Body.Close()
+
+		for _, taoGroupHospitalityEvent := range taoGroupHospitalityEdmEvents {
+
+			edmEvent := EdmEvent{}
+			edmEvent.Id = getGUID()
+			edmEvent.ArtistName = strings.ToLower(taoGroupHospitalityEvent.Acf.EventTitle.DisplayTitle)
+			formattedClubName := filterOutLasVegasFromTitle(taoGroupHospitalityEvent.Acf.EventVenue[0].PostTitle)
+			edmEvent.ClubName = formattedClubName
+			formattedDate := filterOutTimeFromDate(taoGroupHospitalityEvent.Acf.EventStartDate)
+			formattedDate, err := formatDateFrom_MM_DD_YYYY_toRFC3339(formattedDate)
+
+			if err != nil {
+				fmt.Println("Error while parsing the date:", err)
+			}
+
+			edmEvent.EventDate = formattedDate
+			edmEvent.TicketUrl = taoGroupHospitalityEvent.Link
+
+			isPastDate, err := isPastDate(formattedDate)
+			if err != nil {
+				fmt.Println("Error while parsing the date:", err)
+			}
+
+			if !isPastDate {
+				edmEvents = append(edmEvents, edmEvent)
+			}
+
+		}
 	}
 	fmt.Println(len(edmEvents), "NOT filtered events")
 	edmEvents = filterUnwantedEvents(edmEvents, []string{"lavo italian restaurant las vegas"})
