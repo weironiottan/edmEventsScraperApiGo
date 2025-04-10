@@ -6,3 +6,6 @@ steps:
 # Push the container image to Container Registry
 images:
   - 'gcr.io/$PROJECT_ID/edm-events-scraper:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
