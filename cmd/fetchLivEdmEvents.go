@@ -56,6 +56,9 @@ func scrapeLivForEdmEvents() []EdmEvent {
 		}
 		currentDate = livEdmEventsResponse.Nextloaddate
 	}
+
+	fmt.Println(len(edmEvents), "LIV edmEvents")
+	fmt.Println("Scraping Completed for LIV!!!")
 	return edmEvents
 }
 
