@@ -22,3 +22,5 @@ go.work
 /.idea/edmEventsScraperApiGo.iml
 /.idea/modules.xml
 /.idea/vcs.xml
+bin/edmEventsScraperJob
+edmEventsScraperJob
