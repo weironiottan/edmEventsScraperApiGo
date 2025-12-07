@@ -41,7 +41,13 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data any, h
 func extractEventDate(url string) string {
 	regexPattern := regexp.MustCompile(`\d+`)
 	extractedData := regexPattern.FindStringSubmatch(url)
+	if len(extractedData) == 0 {
+		return ""
+	}
 	extractedDigits := extractedData[0]
+	if len(extractedDigits) < 8 {
+		return ""
+	}
 	extractedDate := extractedDigits[len(extractedDigits)-8:]
 	return extractedDate
 }

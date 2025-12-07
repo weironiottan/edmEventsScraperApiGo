@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/gocolly/colly"
-	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gocolly/colly"
 )
 
 /*
@@ -20,24 +20,11 @@ I am fetching the url for each month possible, we start at the current month the
 might come in useful if they decide to remove the lazy loading feature then this won't be needed
 */
 
-func (app *application) fetchZoukEdmEvents(w http.ResponseWriter, r *http.Request) {
-
-	edmEvents := scrapeZoukEdmEvents()
-	err := app.writeJSON(w, http.StatusOK, edmEvents, nil)
-
-	if err != nil {
-		app.logger.Print(err)
-		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
-	}
-
-}
-
-func scrapeZoukEdmEvents() []EdmEvent {
+func scrapeZoukEdmEvents(url string) []EdmEvent {
 	currentTime := time.Now()
 	monthNumber := int(currentTime.Month())
 	year := currentTime.Year()
 	edmEvents := []EdmEvent{}
-	var scrapeurl string
 	hasEventItems := true
 
 	c := colly.NewCollector()
@@ -65,6 +52,7 @@ func scrapeZoukEdmEvents() []EdmEvent {
 
 		if err != nil {
 			fmt.Println("Error while parsing the date:", err)
+			return
 		}
 
 		edmEvent.EventDate = formattedDate
@@ -72,6 +60,7 @@ func scrapeZoukEdmEvents() []EdmEvent {
 		isPastDate, err := isPastDate(formattedDate)
 		if err != nil {
 			fmt.Println("Error while parsing the date:", err)
+			return
 		}
 
 		if !isPastDate {
@@ -85,6 +74,7 @@ func scrapeZoukEdmEvents() []EdmEvent {
 
 	c.OnError(func(r *colly.Response, e error) {
 		fmt.Printf("Error while scraping: %s\n", e.Error())
+		hasEventItems = false
 	})
 
 	c.OnScraped(func(r *colly.Response) {
@@ -92,7 +82,7 @@ func scrapeZoukEdmEvents() []EdmEvent {
 	})
 
 	for hasEventItems {
-		scrapeurl = fmt.Sprintf("https://zoukgrouplv.com/wp-admin/admin-ajax.php?action=uvwp_loadmoreevents&venuegroup=all&caldate=%v-%02d-01", year, monthNumber)
+		scrapeurl := formatPaginatedDateURLZouk(url, year, monthNumber)
 		year, monthNumber = incrementYearMonth(year, monthNumber)
 		c.Visit(scrapeurl)
 	}
@@ -109,4 +99,9 @@ func incrementYearMonth(year int, monthNumber int) (int, int) {
 		monthNumber++
 	}
 	return year, monthNumber
+}
+
+func formatPaginatedDateURLZouk(scrappingUrl string, year int, month int) string {
+	formattedURL := fmt.Sprintf(scrappingUrl+"%v-%02d-01", year, month)
+	return formattedURL
 }

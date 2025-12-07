@@ -2,27 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/gocolly/colly"
-	"net/http"
 	"strings"
+
+	"github.com/gocolly/colly"
 )
 
-// Declare a handler which writes a plain-text response with information about the
-// application status, operating environment and version.
-func (app *application) fetchWynnEdmEvents(w http.ResponseWriter, r *http.Request) {
-	edmEvents := scrapeWynnForEdmEvents()
-	err := app.writeJSON(w, http.StatusOK, edmEvents, nil)
-
-	if err != nil {
-		app.logger.Print(err)
-		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
-	}
-
-}
-
-func scrapeWynnForEdmEvents() []EdmEvent {
+func scrapeWynnForEdmEvents(scrapeurl string) []EdmEvent {
 	edmEvents := []EdmEvent{}
-	scrapeurl := "https://www.wynnsocial.com/events/"
 	c := colly.NewCollector()
 	c.Wait()
 
@@ -40,6 +26,7 @@ func scrapeWynnForEdmEvents() []EdmEvent {
 
 		if err != nil {
 			fmt.Println("Error while parsing the date:", err)
+			return
 		}
 
 		edmEvent.EventDate = formattedDate
@@ -47,6 +34,7 @@ func scrapeWynnForEdmEvents() []EdmEvent {
 		isPastDate, err := isPastDate(formattedDate)
 		if err != nil {
 			fmt.Println("Error while parsing the date:", err)
+			return
 		}
 
 		if !isPastDate {
