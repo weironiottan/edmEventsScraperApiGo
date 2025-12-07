@@ -12,7 +12,7 @@ A Go-based web scraper that collects Electronic Dance Music (EDM) event data fro
 - **Smart filtering**: Automatically filters out past events and non-EDM venues (restaurants, etc.)
 - **Date normalization**: Handles multiple date formats and standardizes to RFC3339
 - **Batch operations**: Efficient Firestore storage with BulkWriter
-- **Full test coverage**: 93.2% coverage on core scraping functions
+- **Comprehensive test coverage**: 68.2% overall coverage with 93-95% on all core scraping functions
 
 ## 📋 Prerequisites
 
@@ -139,8 +139,14 @@ This project uses table-driven tests for comprehensive coverage.
 ### Running Specific Tests
 
 ```bash
-# Run only Tao Group tests
+# Run all tests
+go test ./cmd
+
+# Run tests for a specific scraper
 go test -run TestScrapeTaoGroupHospitalityEdmEvents ./cmd
+go test -run TestScrapeWynnForEdmEvents ./cmd
+go test -run TestScrapeLivForEdmEvents ./cmd
+go test -run TestScrapeZoukEdmEvents ./cmd
 
 # Run only positive tests
 go test -run TestScrapeTaoGroupHospitalityEdmEvents_Positive ./cmd
@@ -149,15 +155,24 @@ go test -run TestScrapeTaoGroupHospitalityEdmEvents_Positive ./cmd
 go test -run TestScrapeTaoGroupHospitalityEdmEvents_Negative ./cmd
 ```
 
+### Test Coverage
+
+The project includes **66 comprehensive table-driven tests** covering all scrapers:
+- **TaoGroup**: 15 tests (7 positive + 8 negative)
+- **LIV**: 17 tests (7 positive + 10 negative)
+- **Wynn**: 18 tests (8 positive + 10 negative)
+- **Zouk**: 16 tests (6 positive + 10 negative)
+
 ### Coverage Requirements
 
-Files with test coverage should maintain **at least 90%** coverage. Current coverage:
+All scraper functions maintain **at least 90%** coverage. Current coverage:
 
 - `scrapeTaoGroupHospitalityEdmEvents`: 93.2%
-- `getTaoGroupHospitalityEdmEvents`: 87.5%
-- `filterOutTimeFromDate`: 100%
-- `filterOutLasVegasFromTitle`: 100%
-- `formatPaginatedURL`: 100%
+- `scrapeLivForEdmEvents`: 94.4%
+- `scrapeWynnForEdmEvents`: 94.3%
+- `scrapeZoukEdmEvents`: 95.3%
+- `extractEventDate`: 88.9%
+- **Overall**: 68.2%
 
 ## 🔄 Development Workflow
 
@@ -182,9 +197,12 @@ Current hooks:
 
 1. Create scraper function in `cmd/fetchNewVenueEdmEvents.go`
 2. Implement: `scrapeNewVenueEdmEvents(url string) []EdmEvent`
-3. Add tests in `cmd/fetchNewVenueEdmEvents_test.go`
-4. Update `fetchEdmEventsHelper.go` to include the new scraper
-5. Ensure 90%+ test coverage
+3. Add error handling with `return` statements for invalid dates
+4. Create comprehensive table-driven tests in `cmd/fetchNewVenueEdmEvents_test.go`
+   - Include both positive and negative test cases
+   - Test pagination, error handling, and edge cases
+5. Update `fetchEdmEventsHelper.go` to include the new scraper
+6. Ensure 90%+ test coverage on the scraper function
 
 ## 📊 Data Model
 
@@ -257,6 +275,7 @@ go mod tidy
 - Clear test cache: `go clean -testcache`
 - Verify date formats match expected values
 - Check that mock server responses use correct JSON field names (`post_title` not `PostTitle`)
+- For Zouk tests, ensure timeout is set: `go test ./cmd -timeout 30s`
 
 **Pre-commit hook failures**:
 - Ensure Go modules are downloaded: `go mod download`

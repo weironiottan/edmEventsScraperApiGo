@@ -3,10 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 /*
@@ -18,23 +19,13 @@ it also returns the HTML in the response, so I threw out Colly and just use
 goquery to query the HTML
 ----
 */
-func (app *application) fetchLivEdmEvents(w http.ResponseWriter, r *http.Request) {
-	edmEvents := scrapeLivForEdmEvents()
-	err := app.writeJSON(w, http.StatusOK, edmEvents, nil)
 
-	if err != nil {
-		app.logger.Print(err)
-		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
-	}
-
-}
-
-func scrapeLivForEdmEvents() []EdmEvent {
+func scrapeLivForEdmEvents(url string) []EdmEvent {
 	edmEvents := []EdmEvent{}
 	currentDate := time.Now().Format("2006-01-02")
 
 	for {
-		url := fmt.Sprintf("https://www.livnightclub.com/wp-admin/admin-ajax.php?action=uvpx&uvaction=uwspx_loadevents&date=%s&venue=livlasvegas", currentDate)
+		url := formatPaginatedDateURLWynn(url, currentDate)
 
 		resp, err := http.Get(url)
 		if err != nil {
@@ -83,6 +74,7 @@ func parseHTMLWithGoQuery(htmlContent string) []EdmEvent {
 
 		if err != nil {
 			fmt.Println("Error while parsing the date:", err)
+			return
 		}
 
 		edmEvent.EventDate = formattedDate
@@ -90,6 +82,7 @@ func parseHTMLWithGoQuery(htmlContent string) []EdmEvent {
 		isPastDate, err := isPastDate(formattedDate)
 		if err != nil {
 			fmt.Println("Error while parsing the date:", err)
+			return
 		}
 
 		if !isPastDate {
@@ -98,6 +91,11 @@ func parseHTMLWithGoQuery(htmlContent string) []EdmEvent {
 	})
 
 	return edmEvents
+}
+
+func formatPaginatedDateURLWynn(scrappingUrl string, date string) string {
+	formattedURL := fmt.Sprintf(scrappingUrl+"%s&venue=livlasvegas", date)
+	return formattedURL
 }
 
 type LivEdmEventsResponse struct {
