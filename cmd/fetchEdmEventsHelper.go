@@ -1,9 +1,9 @@
 package main
 
-func getEdmEventsFromAllLasVegas() []EdmEvent {
+func getEdmEventsFromAllLasVegas(ScrapingURLs ScrapingURLs) []EdmEvent {
 	wynnEdmEvents := scrapeWynnForEdmEvents()
 	zoukEdmEvents := scrapeZoukEdmEvents()
-	taoGroupHospitalityEdmEvents := scrapeTaoGroupHospitalityEdmEvents()
+	taoGroupHospitalityEdmEvents := scrapeTaoGroupHospitalityEdmEvents(ScrapingURLs.TaoGroupHospitality)
 	livEdmEvents := scrapeLivForEdmEvents()
 	allEdmEvents := append(zoukEdmEvents, wynnEdmEvents...)
 	allEdmEvents = append(allEdmEvents, taoGroupHospitalityEdmEvents...)

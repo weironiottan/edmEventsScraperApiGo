@@ -60,7 +60,7 @@ func filterUnwantedEvents(edmEvents []EdmEvent, unWantedEvents []string) []EdmEv
 
 func filterEvent(str string, substrings []string) bool {
 	for _, substring := range substrings {
-		if strings.Contains(strings.ToLower(str), substring) {
+		if strings.Contains(strings.ToLower(str), strings.ToLower(substring)) {
 			return false
 		}
 	}

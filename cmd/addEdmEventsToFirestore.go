@@ -1,9 +1,10 @@
 package main
 
 import (
-	"cloud.google.com/go/firestore"
 	"context"
 	"fmt"
+
+	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
 )
 
@@ -73,8 +74,8 @@ func (m *SnippetModel) InsertMany(edmEvents []EdmEvent) error {
 	return nil
 }
 
-func (app *application) addEdmEventsToFirestore() {
-	edmEvents := getEdmEventsFromAllLasVegas()
+func (app *application) addEdmEventsToFirestore(ScrapingURLs ScrapingURLs) {
+	edmEvents := getEdmEventsFromAllLasVegas(ScrapingURLs)
 
 	err := app.dbSnippets.DeleteMany(edmEvents)
 	if err != nil {

@@ -9,25 +9,14 @@ import (
 	"strings"
 )
 
-func (app *application) fetchTaoGroupHospitalityEdmEvents(w http.ResponseWriter, r *http.Request) {
-	edmEvents := scrapeTaoGroupHospitalityEdmEvents()
-	err := app.writeJSON(w, http.StatusOK, edmEvents, nil)
-
-	if err != nil {
-		app.logger.Print(err)
-		http.Error(w, "The server encountered a problem and could not process your request", http.StatusInternalServerError)
-	}
-
-}
-
-func scrapeTaoGroupHospitalityEdmEvents() []EdmEvent {
+func scrapeTaoGroupHospitalityEdmEvents(scrappingUrl string) []EdmEvent {
 	pageNumber := 1
 
 	var taoGroupHospitalityEdmEvents TaoGroupHospitalityEdmEvents
 	edmEvents := []EdmEvent{}
 
 	for {
-		taoGroupHospitalityUrl := fmt.Sprintf("https://taogroup.com/wp-json/wp/v2/events?event_city%%5B%%5D=81&filter%%5Bmeta_compare%%5D=%%3E%%3D&filter%%5Bmeta_key%%5D=event_start_date&filter%%5Bmeta_value%%5D=1720422000000&filter%%5Border%%5D=asc&filter%%5Borderby%%5D=meta_value&page=%v&per_page=300", pageNumber)
+		taoGroupHospitalityUrl := formatPaginatedURL(scrappingUrl, pageNumber)
 		fmt.Println("Visting ", taoGroupHospitalityUrl)
 		response, err := getTaoGroupHospitalityEdmEvents(taoGroupHospitalityUrl)
 		if err != nil {
@@ -50,6 +39,10 @@ func scrapeTaoGroupHospitalityEdmEvents() []EdmEvent {
 		defer response.Body.Close()
 
 		for _, taoGroupHospitalityEvent := range taoGroupHospitalityEdmEvents {
+			// Skip if venue array is empty
+			if len(taoGroupHospitalityEvent.ACF.EventVenue) == 0 {
+				continue
+			}
 
 			edmEvent := EdmEvent{}
 			edmEvent.Id = getGUID()
@@ -61,6 +54,7 @@ func scrapeTaoGroupHospitalityEdmEvents() []EdmEvent {
 
 			if err != nil {
 				fmt.Println("Error while parsing the date:", err)
+				continue
 			}
 
 			edmEvent.EventDate = formattedDate
@@ -69,6 +63,7 @@ func scrapeTaoGroupHospitalityEdmEvents() []EdmEvent {
 			isPastDate, err := isPastDate(formattedDate)
 			if err != nil {
 				fmt.Println("Error while parsing the date:", err)
+				continue
 			}
 
 			if !isPastDate {
@@ -78,7 +73,7 @@ func scrapeTaoGroupHospitalityEdmEvents() []EdmEvent {
 		}
 	}
 	fmt.Println(len(edmEvents), "NOT filtered events")
-	edmEvents = filterUnwantedEvents(edmEvents, []string{"lavo italian restaurant las vegas"})
+	edmEvents = filterUnwantedEvents(edmEvents, []string{"lavo italian restaurant las vegas", "lavo italian restaurant"})
 	fmt.Println(len(edmEvents), "filtered events")
 
 	fmt.Println("Scraping Completed for Tao Group Hospitality")
@@ -115,6 +110,11 @@ func filterOutLasVegasFromTitle(venueTitle string) string {
 	formattedVenueTitle := re.ReplaceAllString(venueTitle, "")
 	formattedVenueTitle = strings.TrimSpace(formattedVenueTitle)
 	return formattedVenueTitle
+}
+
+func formatPaginatedURL(scrappingUrl string, pageNumber int) string {
+	formattedURL := fmt.Sprintf(scrappingUrl+"page=%v&per_page=300", pageNumber)
+	return formattedURL
 }
 
 // TaoGroupHospitalityEdmEvents represents the event data from Tao Group Hospitality

@@ -1,12 +1,13 @@
 package main
 
 import (
-	"cloud.google.com/go/firestore"
 	"context"
 	"fmt"
-	"google.golang.org/api/option"
 	"log"
 	"os"
+
+	"cloud.google.com/go/firestore"
+	"google.golang.org/api/option"
 )
 
 const version = "1.0.0"
@@ -31,6 +32,10 @@ type DBConfig struct {
 	collection string
 }
 
+type ScrapingURLs struct {
+	TaoGroupHospitality string
+}
+
 func main() {
 
 	// Initialize a new logger which writes messages to the standard out stream,
@@ -38,7 +43,7 @@ func main() {
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
 	// Debug Scraper
-	//dmEvents := getEdmEventsFromAllLasVegas()
+	// dmEvents := getEdmEventsFromAllLasVegas()
 	//println(dmEvents)
 
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
@@ -62,6 +67,10 @@ func main() {
 		projectID:  projectID,
 		databaseID: databaseID,
 		collection: collection,
+	}
+
+	ScrapingURLs := ScrapingURLs{
+		TaoGroupHospitality: "https://taogroup.com/wp-json/wp/v2/events?event_city%%5B%%5D=81&filter%%5Bmeta_compare%%5D=%%3E%%3D&filter%%5Bmeta_key%%5D=event_start_date&filter%%5Bmeta_value%%5D=1720422000000&filter%%5Border%%5D=asc&filter%%5Borderby%%5D=meta_value&",
 	}
 
 	// Declare an instance of the application struct, containing the config struct and
@@ -88,7 +97,7 @@ func main() {
 	// This should bubble up and error in case there is a fatal error, such as a wrong scrape or something
 	// We will have to differentiate between a bad scrape that can continue scrapping other events and still fail the job
 	// And really bad ones where we stop the process
-	app.addEdmEventsToFirestore()
+	app.addEdmEventsToFirestore(ScrapingURLs)
 
 }
 
