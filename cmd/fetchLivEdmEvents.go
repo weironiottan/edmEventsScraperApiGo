@@ -115,8 +115,8 @@ func scrapeLivForEdmEvents(scrapingUrl string) []EdmEvent {
 		startDate = nextStartDate
 	}
 
-	// Placeholder listings LIV posts before the lineup is announced, or for closed nights
-	edmEvents = filterUnwantedArtists(edmEvents, []string{"special guest", "private event"})
+	// Placeholder listings LIV posts before the lineup is announced, closed nights, and non-EDM nights
+	edmEvents = filterUnwantedArtists(edmEvents, []string{"special guest", "private event", "latin night"})
 
 	fmt.Println(len(edmEvents), "LIV edmEvents")
 	fmt.Println("Scraping Completed for LIV!!!")

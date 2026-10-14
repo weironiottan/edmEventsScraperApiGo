@@ -213,10 +213,11 @@ func TestScrapeLivForEdmEvents_Negative(t *testing.T) {
 			mockPages: []mockLivSpeakeasyPage{{events: []mockLivSpeakeasyEvent{
 				{"EVE-AAA111", "Special Guest", "LIV Las Vegas", futureUTC, ""},
 				{"EVE-BBB222", "Closed For Private Event", "LIV Las Vegas", futureUTC, ""},
-				{"EVE-CCC333", "Knock2", "LIV Las Vegas", futureUTC, ""},
+				{"EVE-CCC333", "VIVE: Latin Night w Olea", "LIV Las Vegas", futureUTC, ""},
+				{"EVE-DDD444", "Knock2", "LIV Las Vegas", futureUTC, ""},
 			}}},
 			expectedEventCount: 1,
-			description:        "Should drop 'special guest' and 'closed for private event' listings",
+			description:        "Should drop 'special guest', 'closed for private event' and 'latin night' listings",
 		},
 		{
 			name:       "Server always says there are more pages",
