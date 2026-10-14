@@ -64,6 +64,18 @@ func filterUnwantedEvents(edmEvents []EdmEvent, unWantedEvents []string) []EdmEv
 	return filteredEdmEvents
 }
 
+func filterUnwantedArtists(edmEvents []EdmEvent, unWantedArtists []string) []EdmEvent {
+	filteredEdmEvents := []EdmEvent{}
+
+	for _, edmEvent := range edmEvents {
+		isWantedArtistName := filterEvent(edmEvent.ArtistName, unWantedArtists)
+		if isWantedArtistName {
+			filteredEdmEvents = append(filteredEdmEvents, edmEvent)
+		}
+	}
+	return filteredEdmEvents
+}
+
 func filterEvent(str string, substrings []string) bool {
 	for _, substring := range substrings {
 		if strings.Contains(strings.ToLower(str), strings.ToLower(substring)) {
