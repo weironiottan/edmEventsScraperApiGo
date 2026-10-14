@@ -8,7 +8,7 @@ A Go-based web scraper that collects Electronic Dance Music (EDM) event data fro
   - Wynn (HTML scraping with Colly)
   - Zouk (Pagination API)
   - Tao Group Hospitality (WordPress REST API)
-  - LIV (Pagination API)
+  - LIV (Events page HTML)
 - **Smart filtering**: Automatically filters out past events and non-EDM venues (restaurants, etc.)
 - **Date normalization**: Handles multiple date formats and standardizes to RFC3339
 - **Batch operations**: Efficient Firestore storage with BulkWriter
@@ -159,7 +159,7 @@ go test -run TestScrapeTaoGroupHospitalityEdmEvents_Negative ./cmd
 
 The project includes **66 comprehensive table-driven tests** covering all scrapers:
 - **TaoGroup**: 15 tests (7 positive + 8 negative)
-- **LIV**: 17 tests (7 positive + 10 negative)
+- **LIV**: 15 tests (6 positive + 9 negative)
 - **Wynn**: 18 tests (8 positive + 10 negative)
 - **Zouk**: 16 tests (6 positive + 10 negative)
 
@@ -298,7 +298,8 @@ This ensures no stale data but requires careful error handling.
 Different venues use different date formats:
 - Wynn: `YYYYMMDD`
 - Tao Group: `MM/DD/YYYY HH:MM AM/PM`
-- Zouk/LIV: Various pagination-based formats
+- Zouk: Pagination-based format
+- LIV: Server-rendered events page
 
 All dates are standardized to RFC3339 before storage.
 

@@ -1,9 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -11,98 +12,144 @@ import (
 )
 
 /*
-Update: 07/13/2025
+Update: 10/13/2026
 
-Liv has updated their site to use pagination, it's easier now to just call the API directly
-with the current date, and then find out what the next pagination date is from the response
-it also returns the HTML in the response, so I threw out Colly and just use
-goquery to query the HTML
+LIV moved to a new site. The old admin-ajax pagination endpoint is legacy (its event URLs
+301 redirect to the new site). The new events page is server rendered and contains
+every upcoming event, with the data we need in data-liv-* attributes on each card,
+so there's no pagination anymore.
 ----
 */
 
-func scrapeLivForEdmEvents(url string) []EdmEvent {
+// Only the nightclub, LIV Beach (livlasvegasbeach) is a dayclub
+const livNightclubVenueKey = "livlasvegas"
+
+func scrapeLivForEdmEvents(scrapingUrl string) []EdmEvent {
 	edmEvents := []EdmEvent{}
-	currentDate := time.Now().Format("2006-01-02")
 
-	for {
-		url := formatPaginatedDateURLWynn(url, currentDate)
-
-		resp, err := http.Get(url)
-		if err != nil {
-			break
-		}
-
-		// JSON unmarshal
-		var livEdmEventsResponse LivEdmEventsResponse
-		json.NewDecoder(resp.Body).Decode(&livEdmEventsResponse)
-		resp.Body.Close()
-
-		// GoQuery on the HTML string
-		events := parseHTMLWithGoQuery(livEdmEventsResponse.Agenda)
-		edmEvents = append(edmEvents, events...)
-
-		// Pagination logic
-		if livEdmEventsResponse.Nextloaddate == "" || livEdmEventsResponse.Nevents < 1 {
-			break
-		}
-		currentDate = livEdmEventsResponse.Nextloaddate
+	htmlContent, err := getLivEventsPage(scrapingUrl)
+	if err != nil {
+		fmt.Println("Error while scraping LIV:", err)
+		fmt.Println(len(edmEvents), "LIV edmEvents")
+		return edmEvents
 	}
+
+	edmEvents = parseLivEventsPage(htmlContent, scrapingUrl)
+	// Placeholder listings LIV posts before the lineup is announced, or for closed nights
+	edmEvents = filterUnwantedArtists(edmEvents, []string{"special guest", "private event"})
 
 	fmt.Println(len(edmEvents), "LIV edmEvents")
 	fmt.Println("Scraping Completed for LIV!!!")
 	return edmEvents
 }
 
-func parseHTMLWithGoQuery(htmlContent string) []EdmEvent {
-	var edmEvents []EdmEvent
+func getLivEventsPage(scrapingUrl string) (string, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	request, err := http.NewRequest(http.MethodGet, scrapingUrl, nil)
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %w", err)
+	}
+	request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+
+	response, err := client.Do(request)
+	if err != nil {
+		return "", fmt.Errorf("error sending request to %s: %w", scrapingUrl, err)
+	}
+	defer response.Body.Close()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", fmt.Errorf("error reading response body: %w", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("status %d from %s (content-type %q): %s",
+			response.StatusCode, scrapingUrl, response.Header.Get("Content-Type"), truncate(string(body), 500))
+	}
+
+	return string(body), nil
+}
+
+func parseLivEventsPage(htmlContent string, pageUrl string) []EdmEvent {
+	edmEvents := []EdmEvent{}
 
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlContent))
 	if err != nil {
+		fmt.Println("Error while parsing LIV HTML:", err)
 		return edmEvents
 	}
 
-	doc.Find("div.uv-carousel-lat").Each(func(i int, selection *goquery.Selection) {
-		edmEvent := EdmEvent{}
-		artistName := selection.Find("h3.uv-event-name-title").Text()
-		clubName := selection.Find("div.uwsvenuename").Text()
-		edmEvent.Id = getGUID()
-		edmEvent.ArtistName = strings.ToLower(artistName)
-		edmEvent.ClubName = strings.ToLower(clubName)
-		venueTicketurl, _ := selection.Find("a.hd-link").Attr("href")
-		edmEvent.TicketUrl = venueTicketurl
-		formattedDate, err := formatDateFrom_YYYYMMDD_toRFC3339(extractEventDate(venueTicketurl))
+	cards := doc.Find("[data-liv-event-id]")
+	if cards.Length() == 0 {
+		fmt.Println("Error while scraping LIV: no event cards found, the page layout may have changed")
+		return edmEvents
+	}
 
+	seenEventIds := map[string]bool{}
+
+	cards.Each(func(i int, selection *goquery.Selection) {
+		venueKey, _ := selection.Attr("data-liv-venue-key")
+		if venueKey != livNightclubVenueKey {
+			return
+		}
+
+		// The page can show the same event in more than one section
+		eventId, _ := selection.Attr("data-liv-event-id")
+		if seenEventIds[eventId] {
+			return
+		}
+		seenEventIds[eventId] = true
+
+		artistName, _ := selection.Attr("data-liv-event-name")
+		clubName, _ := selection.Attr("data-liv-venue-name")
+		eventDate, _ := selection.Attr("data-liv-event-date")
+		href, _ := selection.Attr("href")
+		artistImageUrl, _ := selection.Find("img").Attr("src")
+
+		formattedDate, err := formatDateFrom_YYYY_MM_DD_toRFC3339(eventDate)
 		if err != nil {
 			fmt.Println("Error while parsing the date:", err)
 			return
 		}
-
-		edmEvent.EventDate = formattedDate
 
 		isPastDate, err := isPastDate(formattedDate)
 		if err != nil {
 			fmt.Println("Error while parsing the date:", err)
 			return
 		}
-
-		if !isPastDate {
-			edmEvents = append(edmEvents, edmEvent)
+		if isPastDate {
+			return
 		}
+
+		edmEvent := EdmEvent{}
+		edmEvent.Id = getGUID()
+		edmEvent.ArtistName = strings.ToLower(strings.TrimSpace(artistName))
+		edmEvent.ClubName = strings.ToLower(strings.TrimSpace(clubName))
+		edmEvent.EventDate = formattedDate
+		edmEvent.TicketUrl = resolveUrl(pageUrl, href)
+		edmEvent.ArtistImageUrl = artistImageUrl
+		edmEvents = append(edmEvents, edmEvent)
 	})
 
 	return edmEvents
 }
 
-func formatPaginatedDateURLWynn(scrappingUrl string, date string) string {
-	formattedURL := fmt.Sprintf(scrappingUrl+"%s&venue=livlasvegas", date)
-	return formattedURL
+// Event links on the page are relative (/las-vegas/event/...)
+func resolveUrl(baseUrl string, href string) string {
+	base, err := url.Parse(baseUrl)
+	if err != nil {
+		return href
+	}
+	ref, err := url.Parse(href)
+	if err != nil {
+		return href
+	}
+	return base.ResolveReference(ref).String()
 }
 
-type LivEdmEventsResponse struct {
-	Agenda       string `json:"agenda"`
-	Calendar     string `json:"calendar"`
-	List         string `json:"list"`
-	Todate       string `json:"todate"`
-	Nevents      int    `json:"nevents"`
-	Nextloaddate string `json:"nextloaddate"`
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }

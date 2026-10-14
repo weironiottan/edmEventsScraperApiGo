@@ -4,217 +4,122 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
 
 // TestScrapeLivForEdmEvents_Positive tests successful scraping scenarios
 func TestScrapeLivForEdmEvents_Positive(t *testing.T) {
-	// Get future date for testing (30 days from now)
-	futureDate := time.Now().AddDate(0, 0, 30)
-	futureDateStr := futureDate.Format("20060102") // YYYYMMDD format for URL extraction
+	// Get future dates for testing
+	futureDate := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
+	laterFutureDate := time.Now().AddDate(0, 0, 31).Format("2006-01-02")
 
 	tests := []struct {
 		name                string
-		mockAPIResponses    []mockLivResponse
+		mockHTML            string
 		expectedEventCount  int
 		expectedFirstArtist string
 		expectedFirstClub   string
-		validateAllEvents   func(t *testing.T, events []EdmEvent)
+		validateAllEvents   func(t *testing.T, events []EdmEvent, serverURL string)
 	}{
 		{
-			name: "Single page with one valid event",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Tiësto</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`, futureDateStr),
-				},
-			},
+			name:                "Single valid event",
+			mockHTML:            livEventsPage(livEventCard("EVE-AAA111", "Tiësto", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/tiesto/", "https://example.com/tiesto.jpg")),
 			expectedEventCount:  1,
 			expectedFirstArtist: "tiësto",
-			expectedFirstClub:   "liv nightclub",
-			validateAllEvents: func(t *testing.T, events []EdmEvent) {
-				if len(events) != 1 {
-					return
+			expectedFirstClub:   "liv las vegas",
+			validateAllEvents: func(t *testing.T, events []EdmEvent, serverURL string) {
+				expectedDate := futureDate + "T00:00:00Z"
+				if events[0].EventDate != expectedDate {
+					t.Errorf("Expected date '%s', got '%s'", expectedDate, events[0].EventDate)
 				}
-				if events[0].TicketUrl != fmt.Sprintf("https://livnightclub.com/events/%s", futureDateStr) {
-					t.Errorf("Expected ticket URL 'https://livnightclub.com/events/%s', got '%s'", futureDateStr, events[0].TicketUrl)
+				expectedTicketUrl := serverURL + "/las-vegas/event/EVE-AAA111/tiesto/"
+				if events[0].TicketUrl != expectedTicketUrl {
+					t.Errorf("Expected ticket URL '%s', got '%s'", expectedTicketUrl, events[0].TicketUrl)
 				}
-				if events[0].Id == "" {
-					t.Error("Expected event ID to be generated")
+				if events[0].ArtistImageUrl != "https://example.com/tiesto.jpg" {
+					t.Errorf("Expected image URL 'https://example.com/tiesto.jpg', got '%s'", events[0].ArtistImageUrl)
 				}
 			},
 		},
 		{
-			name: "Single page with multiple events",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Calvin Harris</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div><div class='uv-carousel-lat'><h3 class='uv-event-name-title'>David Guetta</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 2,
-						"nextloaddate": ""
-					}`, futureDateStr, futureDateStr),
-				},
-			},
+			name: "Multiple events keep page order",
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/beltran/", ""),
+				livEventCard("EVE-BBB222", "Cloonee", "LIV Las Vegas", "livlasvegas", laterFutureDate, "/las-vegas/event/EVE-BBB222/cloonee/", ""),
+			),
 			expectedEventCount:  2,
-			expectedFirstArtist: "calvin harris",
-			expectedFirstClub:   "liv nightclub",
+			expectedFirstArtist: "beltran",
+			expectedFirstClub:   "liv las vegas",
+			validateAllEvents: func(t *testing.T, events []EdmEvent, serverURL string) {
+				if events[1].ArtistName != "cloonee" {
+					t.Errorf("Expected second artist 'cloonee', got '%s'", events[1].ArtistName)
+				}
+				if events[0].Id == events[1].Id {
+					t.Error("Expected unique IDs for each event")
+				}
+			},
 		},
 		{
-			name: "Multiple pages with pagination",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Zedd</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": "2025-12-15"
-					}`, futureDateStr),
-				},
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Marshmello</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`, futureDateStr),
-				},
-			},
-			expectedEventCount:  2,
-			expectedFirstArtist: "zedd",
-			expectedFirstClub:   "liv nightclub",
-		},
-		{
-			name: "Artist names are lowercased",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>STEVE AOKI</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`, futureDateStr),
-				},
-			},
+			name: "HTML entities in names are decoded",
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "Tiësto &#8211; New Year&#8217;s Eve", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/tiesto-nye/", ""),
+			),
 			expectedEventCount:  1,
-			expectedFirstArtist: "steve aoki",
-			expectedFirstClub:   "liv nightclub",
+			expectedFirstArtist: "tiësto – new year’s eve",
+			expectedFirstClub:   "liv las vegas",
 		},
 		{
-			name: "Club names are lowercased",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Alesso</h3><div class='uwsvenuename'>LIV NIGHTCLUB</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`, futureDateStr),
-				},
-			},
+			name: "LIV Beach events are skipped",
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "Riordan", "LIV Beach", "livlasvegasbeach", futureDate, "/las-vegas/event/EVE-AAA111/riordan/", ""),
+				livEventCard("EVE-BBB222", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-BBB222/beltran/", ""),
+			),
 			expectedEventCount:  1,
-			expectedFirstArtist: "alesso",
-			expectedFirstClub:   "liv nightclub",
+			expectedFirstArtist: "beltran",
+			expectedFirstClub:   "liv las vegas",
 		},
 		{
-			name: "Empty agenda returns no events",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: `{
-						"agenda": "",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 0,
-						"nextloaddate": ""
-					}`,
-				},
-			},
-			expectedEventCount: 0,
-		},
-		{
-			name: "Pagination stops when nevents is 0",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>First Artist</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": "2025-12-15"
-					}`, futureDateStr),
-				},
-				{
-					statusCode: http.StatusOK,
-					body: `{
-						"agenda": "",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 0,
-						"nextloaddate": ""
-					}`,
-				},
-			},
+			name: "Duplicate cards for the same event are only added once",
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/beltran/", ""),
+				livEventCard("EVE-AAA111", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/beltran/", ""),
+			),
 			expectedEventCount:  1,
-			expectedFirstArtist: "first artist",
-			expectedFirstClub:   "liv nightclub",
+			expectedFirstArtist: "beltran",
+			expectedFirstClub:   "liv las vegas",
+		},
+		{
+			name: "Absolute ticket URLs are kept as-is",
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "https://www.livnightclub.com/las-vegas/event/EVE-AAA111/beltran/", ""),
+			),
+			expectedEventCount:  1,
+			expectedFirstArtist: "beltran",
+			expectedFirstClub:   "liv las vegas",
+			validateAllEvents: func(t *testing.T, events []EdmEvent, serverURL string) {
+				if events[0].TicketUrl != "https://www.livnightclub.com/las-vegas/event/EVE-AAA111/beltran/" {
+					t.Errorf("Expected absolute ticket URL to be unchanged, got '%s'", events[0].TicketUrl)
+				}
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create mock server
-			responseIndex := 0
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if responseIndex < len(tt.mockAPIResponses) {
-					mockResp := tt.mockAPIResponses[responseIndex]
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(mockResp.statusCode)
-					w.Write([]byte(mockResp.body))
-					responseIndex++
-				} else {
-					w.WriteHeader(http.StatusNotFound)
-				}
-			}))
+			server := newMockLivServer(http.StatusOK, tt.mockHTML)
 			defer server.Close()
 
-			// Call the function directly with test server URL
-			events := scrapeLivForEdmEvents(server.URL + "?date=")
+			events := scrapeLivForEdmEvents(server.URL + "/las-vegas/events/")
 
 			// Verify event count
 			if len(events) != tt.expectedEventCount {
-				t.Errorf("Expected %d events, got %d", tt.expectedEventCount, len(events))
+				t.Fatalf("Expected %d events, got %d", tt.expectedEventCount, len(events))
 			}
 
 			// Verify first event details if events exist
-			if tt.expectedEventCount > 0 && len(events) > 0 {
+			if tt.expectedEventCount > 0 {
 				if events[0].ArtistName != tt.expectedFirstArtist {
 					t.Errorf("Expected first artist '%s', got '%s'", tt.expectedFirstArtist, events[0].ArtistName)
 				}
@@ -231,7 +136,7 @@ func TestScrapeLivForEdmEvents_Positive(t *testing.T) {
 
 			// Run custom validation if provided
 			if tt.validateAllEvents != nil {
-				tt.validateAllEvents(t, events)
+				tt.validateAllEvents(t, events, server.URL)
 			}
 		})
 	}
@@ -239,179 +144,92 @@ func TestScrapeLivForEdmEvents_Positive(t *testing.T) {
 
 // TestScrapeLivForEdmEvents_Negative tests error scenarios and edge cases
 func TestScrapeLivForEdmEvents_Negative(t *testing.T) {
-	// Get past date for testing (30 days ago)
-	pastDate := time.Now().AddDate(0, 0, -30)
-	pastDateStr := pastDate.Format("20060102") // YYYYMMDD format for URL extraction
-
-	// Get future date
-	futureDate := time.Now().AddDate(0, 0, 30)
-	futureDateStr := futureDate.Format("20060102")
+	pastDate := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
+	futureDate := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
 
 	tests := []struct {
 		name               string
-		mockAPIResponses   []mockLivResponse
+		statusCode         int
+		mockHTML           string
 		expectedEventCount int
 		description        string
 	}{
 		{
-			name: "Server returns error on first request",
-			mockAPIResponses: []mockLivResponse{
-				{statusCode: http.StatusInternalServerError, body: ``},
-			},
+			name:               "Server returns 500",
+			statusCode:         http.StatusInternalServerError,
+			mockHTML:           ``,
 			expectedEventCount: 0,
-			description:        "Should handle server errors gracefully",
+			description:        "Should return no events when the server errors",
 		},
 		{
-			name: "Invalid JSON response",
-			mockAPIResponses: []mockLivResponse{
-				{statusCode: http.StatusOK, body: `{invalid json}`},
-			},
+			name:               "Cloudflare block page",
+			statusCode:         http.StatusForbidden,
+			mockHTML:           `<html><head><title>Attention Required! | Cloudflare</title></head><body></body></html>`,
 			expectedEventCount: 0,
-			description:        "Should handle malformed JSON without crashing",
+			description:        "Should return no events when blocked",
 		},
 		{
-			name: "Past events are filtered out",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Past Event</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`, pastDateStr),
-				},
-			},
+			name:               "Page with no event cards",
+			statusCode:         http.StatusOK,
+			mockHTML:           livEventsPage(),
 			expectedEventCount: 0,
-			description:        "Events with past dates should be filtered",
+			description:        "Should return no events when the layout changes",
 		},
 		{
-			name: "Mix of valid and past events",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Valid Event</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div><div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Past Event</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 2,
-						"nextloaddate": ""
-					}`, futureDateStr, pastDateStr),
-				},
-			},
+			name:               "Empty body",
+			statusCode:         http.StatusOK,
+			mockHTML:           ``,
+			expectedEventCount: 0,
+			description:        "Should handle an empty response",
+		},
+		{
+			name:       "Past events are filtered out",
+			statusCode: http.StatusOK,
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "Old Artist", "LIV Las Vegas", "livlasvegas", pastDate, "/las-vegas/event/EVE-AAA111/old/", ""),
+				livEventCard("EVE-BBB222", "New Artist", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-BBB222/new/", ""),
+			),
 			expectedEventCount: 1,
-			description:        "Should only include future events",
+			description:        "Should drop events that already happened",
 		},
 		{
-			name: "Malformed HTML with no event containers",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: `{
-						"agenda": "<div class='some-other-class'>Not an event</div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`,
-				},
-			},
-			expectedEventCount: 0,
-			description:        "Should handle HTML without proper event containers",
-		},
-		{
-			name: "Missing artist name in HTML",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`, futureDateStr),
-				},
-			},
+			name:       "Invalid date is skipped",
+			statusCode: http.StatusOK,
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "Bad Date", "LIV Las Vegas", "livlasvegas", "not-a-date", "/las-vegas/event/EVE-AAA111/bad/", ""),
+				livEventCard("EVE-BBB222", "Good Date", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-BBB222/good/", ""),
+			),
 			expectedEventCount: 1,
-			description:        "Should handle missing artist name gracefully",
+			description:        "Should skip events with unparseable dates",
 		},
 		{
-			name: "Missing club name in HTML",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Artist Name</h3><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`, futureDateStr),
-				},
-			},
-			expectedEventCount: 1,
-			description:        "Should handle missing club name gracefully",
-		},
-		{
-			name: "Invalid URL format (cannot extract date)",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: `{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Test Artist</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/invalid'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`,
-				},
-			},
+			name:       "Missing date is skipped",
+			statusCode: http.StatusOK,
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "No Date", "LIV Las Vegas", "livlasvegas", "", "/las-vegas/event/EVE-AAA111/nodate/", ""),
+			),
 			expectedEventCount: 0,
-			description:        "Should handle URLs with invalid date format",
+			description:        "Should skip events without a date",
 		},
 		{
-			name: "Malformed date in URL",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: `{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Test Artist</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/99999999'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`,
-				},
-			},
-			expectedEventCount: 0,
-			description:        "Should handle malformed dates gracefully",
-		},
-		{
-			name: "Empty nextloaddate stops pagination",
-			mockAPIResponses: []mockLivResponse{
-				{
-					statusCode: http.StatusOK,
-					body: fmt.Sprintf(`{
-						"agenda": "<div class='uv-carousel-lat'><h3 class='uv-event-name-title'>Artist</h3><div class='uwsvenuename'>LIV Nightclub</div><a class='hd-link' href='https://livnightclub.com/events/%s'></a></div>",
-						"calendar": "",
-						"list": "",
-						"todate": "",
-						"nevents": 1,
-						"nextloaddate": ""
-					}`, futureDateStr),
-				},
-			},
+			name:       "Placeholder events are filtered out",
+			statusCode: http.StatusOK,
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "Special Guest", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/special-guest/", ""),
+				livEventCard("EVE-BBB222", "Closed For Private Event", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-BBB222/closed-for-private-event/", ""),
+				livEventCard("EVE-CCC333", "Knock2", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-CCC333/knock2/", ""),
+			),
 			expectedEventCount: 1,
-			description:        "Pagination should stop when nextloaddate is empty",
+			description:        "Should drop 'special guest' and 'closed for private event' listings",
+		},
+		{
+			name:       "Only LIV Beach events",
+			statusCode: http.StatusOK,
+			mockHTML: livEventsPage(
+				livEventCard("EVE-AAA111", "Riordan", "LIV Beach", "livlasvegasbeach", futureDate, "/las-vegas/event/EVE-AAA111/riordan/", ""),
+			),
+			expectedEventCount: 0,
+			description:        "Should return no events when only the dayclub has events",
 		},
 	}
 
@@ -419,25 +237,11 @@ func TestScrapeLivForEdmEvents_Negative(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Log(tt.description)
 
-			// Create mock server
-			responseIndex := 0
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if responseIndex < len(tt.mockAPIResponses) {
-					mockResp := tt.mockAPIResponses[responseIndex]
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(mockResp.statusCode)
-					w.Write([]byte(mockResp.body))
-					responseIndex++
-				} else {
-					w.WriteHeader(http.StatusNotFound)
-				}
-			}))
+			server := newMockLivServer(tt.statusCode, tt.mockHTML)
 			defer server.Close()
 
-			// Call the function directly with test server URL
-			events := scrapeLivForEdmEvents(server.URL + "?date=")
+			events := scrapeLivForEdmEvents(server.URL + "/las-vegas/events/")
 
-			// Verify event count
 			if len(events) != tt.expectedEventCount {
 				t.Errorf("%s: Expected %d events, got %d", tt.description, tt.expectedEventCount, len(events))
 			}
@@ -445,9 +249,33 @@ func TestScrapeLivForEdmEvents_Negative(t *testing.T) {
 	}
 }
 
-// Helper types
+// Helpers
 
-type mockLivResponse struct {
-	statusCode int
-	body       string
+func newMockLivServer(statusCode int, body string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+		w.WriteHeader(statusCode)
+		w.Write([]byte(body))
+	}))
+}
+
+func livEventsPage(cards ...string) string {
+	return `<html><body><div class="lvw-events-view lvw-events-view-agenda"><div class="lvw-agenda-default">` +
+		strings.Join(cards, "") +
+		`</div></div></body></html>`
+}
+
+// Mirrors the card markup on https://www.livnightclub.com/las-vegas/events/
+func livEventCard(eventId, name, venueName, venueKey, date, href, imageUrl string) string {
+	return fmt.Sprintf(`<a class="lvw-event-list-item lvw-venuekey-%[4]s lvw-event-agenda-box livlv-event-card"
+	href="%[6]s" data-eventcode="%[1]s"
+	data-liv-event-id="%[1]s"
+	data-liv-event-name="%[2]s"
+	data-liv-venue-name="%[3]s"
+	data-liv-venue-key="%[4]s"
+	data-liv-event-date="%[5]s"
+	aria-label="%[2]s">
+		<img decoding="async" src="%[7]s" alt="%[2]s - Flyer" loading="lazy">
+		<div class="livlv-event-related-card__meta"><div><h3>%[2]s</h3><small>%[3]s | 10:30pm</small></div></div>
+	</a>`, eventId, name, venueName, venueKey, date, href, imageUrl)
 }
