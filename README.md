@@ -8,7 +8,7 @@ A Go-based web scraper that collects Electronic Dance Music (EDM) event data fro
   - Wynn (HTML scraping with Colly)
   - Zouk (Pagination API)
   - Tao Group Hospitality (WordPress REST API)
-  - LIV (Events page HTML)
+  - LIV (via Speakeasy, LIV's ticketing partner)
 - **Smart filtering**: Automatically filters out past events and non-EDM venues (restaurants, etc.)
 - **Date normalization**: Handles multiple date formats and standardizes to RFC3339
 - **Batch operations**: Efficient Firestore storage with BulkWriter
@@ -159,7 +159,7 @@ go test -run TestScrapeTaoGroupHospitalityEdmEvents_Negative ./cmd
 
 The project includes **66 comprehensive table-driven tests** covering all scrapers:
 - **TaoGroup**: 15 tests (7 positive + 8 negative)
-- **LIV**: 15 tests (6 positive + 9 negative)
+- **LIV**: 14 tests (5 positive + 9 negative)
 - **Wynn**: 18 tests (8 positive + 10 negative)
 - **Zouk**: 16 tests (6 positive + 10 negative)
 
@@ -168,7 +168,7 @@ The project includes **66 comprehensive table-driven tests** covering all scrape
 All scraper functions maintain **at least 90%** coverage. Current coverage:
 
 - `scrapeTaoGroupHospitalityEdmEvents`: 93.2%
-- `scrapeLivForEdmEvents`: 94.4%
+- `scrapeLivForEdmEvents`: 87.8%
 - `scrapeWynnForEdmEvents`: 94.3%
 - `scrapeZoukEdmEvents`: 95.3%
 - `extractEventDate`: 88.9%
@@ -299,7 +299,7 @@ Different venues use different date formats:
 - Wynn: `YYYYMMDD`
 - Tao Group: `MM/DD/YYYY HH:MM AM/PM`
 - Zouk: Pagination-based format
-- LIV: Server-rendered events page
+- LIV: Speakeasy discovery page (__NEXT_DATA__ JSON), times converted from UTC to Las Vegas
 
 All dates are standardized to RFC3339 before storage.
 
