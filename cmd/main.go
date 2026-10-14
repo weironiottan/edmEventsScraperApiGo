@@ -74,7 +74,7 @@ func main() {
 
 	ScrapingURLs := ScrapingURLs{
 		TaoGroupHospitality: "https://taogroup.com/wp-json/wp/v2/events?event_city%%5B%%5D=81&filter%%5Bmeta_compare%%5D=%%3E%%3D&filter%%5Bmeta_key%%5D=event_start_date&filter%%5Bmeta_value%%5D=1720422000000&filter%%5Border%%5D=asc&filter%%5Borderby%%5D=meta_value&",
-		Liv:                 "https://www.livnightclub.com/las-vegas/events/",
+		Liv:                 "https://speakeasygo.com/discovery?tab=events&search=LIV%20Las%20Vegas",
 		Wynn:                "https://www.wynnsocial.com/events/",
 		Zouk:                "https://zoukgrouplv.com/wp-admin/admin-ajax.php?action=uvwp_loadmoreevents&venuegroup=all&caldate=",
 	}

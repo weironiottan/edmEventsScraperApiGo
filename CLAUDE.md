@@ -54,7 +54,7 @@ Each venue has a dedicated scraper file that returns `[]EdmEvent`:
 - **fetchWynnEdmEvents.go** - Scrapes Wynn venues using Colly HTML scraping
 - **fetchZoukEdmEvents.go** - Scrapes Zouk using pagination API (lazy-loaded events)
 - **fetchTaoGroupHospitalityEdmEvents.go** - Scrapes Tao Group venues via WordPress JSON API with pagination
-- **fetchLivEdmEvents.go** - Scrapes LIV nightclub from the server-rendered events page (data-liv-* attributes)
+- **fetchLivEdmEvents.go** - Scrapes LIV nightclub from Speakeasy (LIV's ticketing partner), since livnightclub.com blocks Cloud Run with a Cloudflare challenge
 
 All scrapers:
 - Generate unique IDs for each event using `getGUID()`
@@ -97,7 +97,7 @@ type EdmEvent struct {
 Each venue requires a different scraping approach:
 - **Wynn**: Direct HTML scraping with Colly
 - **Zouk**: Pagination API that returns HTML fragments
-- **LIV**: Server-rendered events page, no pagination
+- **LIV**: Speakeasy discovery page, reads the __NEXT_DATA__ JSON and pages by moving the startDate filter forward
 - **Tao Group**: WordPress REST API with structured JSON responses
 
 ### Date Handling

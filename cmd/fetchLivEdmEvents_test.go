@@ -1,58 +1,75 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 )
 
 // TestScrapeLivForEdmEvents_Positive tests successful scraping scenarios
 func TestScrapeLivForEdmEvents_Positive(t *testing.T) {
-	// Get future dates for testing
-	futureDate := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
-	laterFutureDate := time.Now().AddDate(0, 0, 31).Format("2006-01-02")
+	// 10:30pm in Vegas is 05:30 or 06:30 the next day in UTC, which is how Speakeasy returns it
+	futureDate := time.Now().AddDate(0, 0, 30)
+	futureVegasDate := futureDate.Format("2006-01-02")
+	futureUTC := futureDate.AddDate(0, 0, 1).Format("2006-01-02") + " 06:30:00"
+	laterFutureUTC := futureDate.AddDate(0, 0, 2).Format("2006-01-02") + " 06:30:00"
 
 	tests := []struct {
 		name                string
-		mockHTML            string
+		mockPages           []mockLivSpeakeasyPage
 		expectedEventCount  int
 		expectedFirstArtist string
 		expectedFirstClub   string
-		validateAllEvents   func(t *testing.T, events []EdmEvent, serverURL string)
+		validateAllEvents   func(t *testing.T, events []EdmEvent)
 	}{
 		{
-			name:                "Single valid event",
-			mockHTML:            livEventsPage(livEventCard("EVE-AAA111", "Tiësto", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/tiesto/", "https://example.com/tiesto.jpg")),
+			name: "Single valid event",
+			mockPages: []mockLivSpeakeasyPage{
+				{events: []mockLivSpeakeasyEvent{{"EVE-AAA111", "Tiësto", "LIV Las Vegas", futureUTC, "prod/tiesto.jpg"}}},
+			},
 			expectedEventCount:  1,
 			expectedFirstArtist: "tiësto",
 			expectedFirstClub:   "liv las vegas",
-			validateAllEvents: func(t *testing.T, events []EdmEvent, serverURL string) {
-				expectedDate := futureDate + "T00:00:00Z"
+			validateAllEvents: func(t *testing.T, events []EdmEvent) {
+				expectedDate := futureVegasDate + "T00:00:00Z"
 				if events[0].EventDate != expectedDate {
-					t.Errorf("Expected date '%s', got '%s'", expectedDate, events[0].EventDate)
+					t.Errorf("Expected Vegas date '%s', got '%s'", expectedDate, events[0].EventDate)
 				}
-				expectedTicketUrl := serverURL + "/las-vegas/event/EVE-AAA111/tiesto/"
-				if events[0].TicketUrl != expectedTicketUrl {
-					t.Errorf("Expected ticket URL '%s', got '%s'", expectedTicketUrl, events[0].TicketUrl)
+				if events[0].TicketUrl != "https://speakeasygo.com/liv-nightclub-las-vegas/event?eid=EVE-AAA111" {
+					t.Errorf("Unexpected ticket URL '%s'", events[0].TicketUrl)
 				}
-				if events[0].ArtistImageUrl != "https://example.com/tiesto.jpg" {
-					t.Errorf("Expected image URL 'https://example.com/tiesto.jpg', got '%s'", events[0].ArtistImageUrl)
+				if events[0].ArtistImageUrl != "https://media.speakeasygo.com/prod/tiesto.jpg" {
+					t.Errorf("Unexpected image URL '%s'", events[0].ArtistImageUrl)
 				}
 			},
 		},
 		{
-			name: "Multiple events keep page order",
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/beltran/", ""),
-				livEventCard("EVE-BBB222", "Cloonee", "LIV Las Vegas", "livlasvegas", laterFutureDate, "/las-vegas/event/EVE-BBB222/cloonee/", ""),
-			),
+			name: "Missing flyer leaves image empty",
+			mockPages: []mockLivSpeakeasyPage{
+				{events: []mockLivSpeakeasyEvent{{"EVE-AAA111", "Beltran", "LIV Las Vegas", futureUTC, ""}}},
+			},
+			expectedEventCount:  1,
+			expectedFirstArtist: "beltran",
+			expectedFirstClub:   "liv las vegas",
+			validateAllEvents: func(t *testing.T, events []EdmEvent) {
+				if events[0].ArtistImageUrl != "" {
+					t.Errorf("Expected empty image URL, got '%s'", events[0].ArtistImageUrl)
+				}
+			},
+		},
+		{
+			name: "Multiple pages are followed",
+			mockPages: []mockLivSpeakeasyPage{
+				{hasMore: true, events: []mockLivSpeakeasyEvent{{"EVE-AAA111", "Beltran", "LIV Las Vegas", futureUTC, ""}}},
+				{events: []mockLivSpeakeasyEvent{{"EVE-BBB222", "Cloonee", "LIV Las Vegas", laterFutureUTC, ""}}},
+			},
 			expectedEventCount:  2,
 			expectedFirstArtist: "beltran",
 			expectedFirstClub:   "liv las vegas",
-			validateAllEvents: func(t *testing.T, events []EdmEvent, serverURL string) {
+			validateAllEvents: func(t *testing.T, events []EdmEvent) {
 				if events[1].ArtistName != "cloonee" {
 					t.Errorf("Expected second artist 'cloonee', got '%s'", events[1].ArtistName)
 				}
@@ -62,56 +79,39 @@ func TestScrapeLivForEdmEvents_Positive(t *testing.T) {
 			},
 		},
 		{
-			name: "HTML entities in names are decoded",
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "Tiësto &#8211; New Year&#8217;s Eve", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/tiesto-nye/", ""),
-			),
-			expectedEventCount:  1,
-			expectedFirstArtist: "tiësto – new year’s eve",
-			expectedFirstClub:   "liv las vegas",
-		},
-		{
-			name: "LIV Beach events are skipped",
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "Riordan", "LIV Beach", "livlasvegasbeach", futureDate, "/las-vegas/event/EVE-AAA111/riordan/", ""),
-				livEventCard("EVE-BBB222", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-BBB222/beltran/", ""),
-			),
-			expectedEventCount:  1,
-			expectedFirstArtist: "beltran",
-			expectedFirstClub:   "liv las vegas",
-		},
-		{
-			name: "Duplicate cards for the same event are only added once",
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/beltran/", ""),
-				livEventCard("EVE-AAA111", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/beltran/", ""),
-			),
-			expectedEventCount:  1,
-			expectedFirstArtist: "beltran",
-			expectedFirstClub:   "liv las vegas",
-		},
-		{
-			name: "Absolute ticket URLs are kept as-is",
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "Beltran", "LIV Las Vegas", "livlasvegas", futureDate, "https://www.livnightclub.com/las-vegas/event/EVE-AAA111/beltran/", ""),
-			),
-			expectedEventCount:  1,
-			expectedFirstArtist: "beltran",
-			expectedFirstClub:   "liv las vegas",
-			validateAllEvents: func(t *testing.T, events []EdmEvent, serverURL string) {
-				if events[0].TicketUrl != "https://www.livnightclub.com/las-vegas/event/EVE-AAA111/beltran/" {
-					t.Errorf("Expected absolute ticket URL to be unchanged, got '%s'", events[0].TicketUrl)
-				}
+			name: "Events repeated across pages are only added once",
+			mockPages: []mockLivSpeakeasyPage{
+				{hasMore: true, events: []mockLivSpeakeasyEvent{{"EVE-AAA111", "Beltran", "LIV Las Vegas", futureUTC, ""}}},
+				{events: []mockLivSpeakeasyEvent{
+					{"EVE-AAA111", "Beltran", "LIV Las Vegas", futureUTC, ""},
+					{"EVE-BBB222", "Cloonee", "LIV Las Vegas", laterFutureUTC, ""},
+				}},
 			},
+			expectedEventCount:  2,
+			expectedFirstArtist: "beltran",
+			expectedFirstClub:   "liv las vegas",
+		},
+		{
+			name: "Other venues from the search are skipped",
+			mockPages: []mockLivSpeakeasyPage{
+				{events: []mockLivSpeakeasyEvent{
+					{"EVE-AAA111", "Riordan", "LIV Beach", futureUTC, ""},
+					{"EVE-BBB222", "DJ Somebody", "LIV Miami", futureUTC, ""},
+					{"EVE-CCC333", "Beltran", "LIV Las Vegas", futureUTC, ""},
+				}},
+			},
+			expectedEventCount:  1,
+			expectedFirstArtist: "beltran",
+			expectedFirstClub:   "liv las vegas",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := newMockLivServer(http.StatusOK, tt.mockHTML)
+			server := newMockLivSpeakeasyServer(t, http.StatusOK, tt.mockPages)
 			defer server.Close()
 
-			events := scrapeLivForEdmEvents(server.URL + "/las-vegas/events/")
+			events := scrapeLivForEdmEvents(server.URL + "/discovery?tab=events&search=LIV%20Las%20Vegas")
 
 			// Verify event count
 			if len(events) != tt.expectedEventCount {
@@ -129,14 +129,11 @@ func TestScrapeLivForEdmEvents_Positive(t *testing.T) {
 				if events[0].Id == "" {
 					t.Error("Expected event ID to be generated, got empty string")
 				}
-				if events[0].EventDate == "" {
-					t.Error("Expected event date, got empty string")
-				}
 			}
 
 			// Run custom validation if provided
 			if tt.validateAllEvents != nil {
-				tt.validateAllEvents(t, events, server.URL)
+				tt.validateAllEvents(t, events)
 			}
 		})
 	}
@@ -144,92 +141,92 @@ func TestScrapeLivForEdmEvents_Positive(t *testing.T) {
 
 // TestScrapeLivForEdmEvents_Negative tests error scenarios and edge cases
 func TestScrapeLivForEdmEvents_Negative(t *testing.T) {
-	pastDate := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
-	futureDate := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
+	pastUTC := time.Now().AddDate(0, 0, -30).Format("2006-01-02") + " 06:30:00"
+	futureUTC := time.Now().AddDate(0, 0, 30).Format("2006-01-02") + " 06:30:00"
 
 	tests := []struct {
 		name               string
 		statusCode         int
-		mockHTML           string
+		rawBody            string
+		mockPages          []mockLivSpeakeasyPage
 		expectedEventCount int
 		description        string
 	}{
 		{
 			name:               "Server returns 500",
 			statusCode:         http.StatusInternalServerError,
-			mockHTML:           ``,
+			rawBody:            ``,
 			expectedEventCount: 0,
 			description:        "Should return no events when the server errors",
 		},
 		{
 			name:               "Cloudflare block page",
 			statusCode:         http.StatusForbidden,
-			mockHTML:           `<html><head><title>Attention Required! | Cloudflare</title></head><body></body></html>`,
+			rawBody:            `<html><head><title>Just a moment...</title></head><body></body></html>`,
 			expectedEventCount: 0,
 			description:        "Should return no events when blocked",
 		},
 		{
-			name:               "Page with no event cards",
+			name:               "Page without __NEXT_DATA__",
 			statusCode:         http.StatusOK,
-			mockHTML:           livEventsPage(),
+			rawBody:            `<html><body><div>Events</div></body></html>`,
 			expectedEventCount: 0,
 			description:        "Should return no events when the layout changes",
 		},
 		{
-			name:               "Empty body",
+			name:               "Invalid __NEXT_DATA__ JSON",
 			statusCode:         http.StatusOK,
-			mockHTML:           ``,
+			rawBody:            `<html><body><script id="__NEXT_DATA__" type="application/json">{not json</script></body></html>`,
 			expectedEventCount: 0,
-			description:        "Should handle an empty response",
+			description:        "Should handle malformed JSON",
+		},
+		{
+			name:               "No events",
+			statusCode:         http.StatusOK,
+			mockPages:          []mockLivSpeakeasyPage{{events: []mockLivSpeakeasyEvent{}}},
+			expectedEventCount: 0,
+			description:        "Should handle an empty search",
 		},
 		{
 			name:       "Past events are filtered out",
 			statusCode: http.StatusOK,
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "Old Artist", "LIV Las Vegas", "livlasvegas", pastDate, "/las-vegas/event/EVE-AAA111/old/", ""),
-				livEventCard("EVE-BBB222", "New Artist", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-BBB222/new/", ""),
-			),
+			mockPages: []mockLivSpeakeasyPage{{events: []mockLivSpeakeasyEvent{
+				{"EVE-AAA111", "Old Artist", "LIV Las Vegas", pastUTC, ""},
+				{"EVE-BBB222", "New Artist", "LIV Las Vegas", futureUTC, ""},
+			}}},
 			expectedEventCount: 1,
 			description:        "Should drop events that already happened",
 		},
 		{
 			name:       "Invalid date is skipped",
 			statusCode: http.StatusOK,
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "Bad Date", "LIV Las Vegas", "livlasvegas", "not-a-date", "/las-vegas/event/EVE-AAA111/bad/", ""),
-				livEventCard("EVE-BBB222", "Good Date", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-BBB222/good/", ""),
-			),
+			mockPages: []mockLivSpeakeasyPage{{events: []mockLivSpeakeasyEvent{
+				{"EVE-AAA111", "Bad Date", "LIV Las Vegas", "not-a-date", ""},
+				{"EVE-BBB222", "Good Date", "LIV Las Vegas", futureUTC, ""},
+			}}},
 			expectedEventCount: 1,
 			description:        "Should skip events with unparseable dates",
 		},
 		{
-			name:       "Missing date is skipped",
-			statusCode: http.StatusOK,
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "No Date", "LIV Las Vegas", "livlasvegas", "", "/las-vegas/event/EVE-AAA111/nodate/", ""),
-			),
-			expectedEventCount: 0,
-			description:        "Should skip events without a date",
-		},
-		{
 			name:       "Placeholder events are filtered out",
 			statusCode: http.StatusOK,
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "Special Guest", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-AAA111/special-guest/", ""),
-				livEventCard("EVE-BBB222", "Closed For Private Event", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-BBB222/closed-for-private-event/", ""),
-				livEventCard("EVE-CCC333", "Knock2", "LIV Las Vegas", "livlasvegas", futureDate, "/las-vegas/event/EVE-CCC333/knock2/", ""),
-			),
+			mockPages: []mockLivSpeakeasyPage{{events: []mockLivSpeakeasyEvent{
+				{"EVE-AAA111", "Special Guest", "LIV Las Vegas", futureUTC, ""},
+				{"EVE-BBB222", "Closed For Private Event", "LIV Las Vegas", futureUTC, ""},
+				{"EVE-CCC333", "VIVE: Latin Night w Olea", "LIV Las Vegas", futureUTC, ""},
+				{"EVE-DDD444", "Knock2", "LIV Las Vegas", futureUTC, ""},
+			}}},
 			expectedEventCount: 1,
-			description:        "Should drop 'special guest' and 'closed for private event' listings",
+			description:        "Should drop 'special guest', 'closed for private event' and 'latin night' listings",
 		},
 		{
-			name:       "Only LIV Beach events",
+			name:       "Server always says there are more pages",
 			statusCode: http.StatusOK,
-			mockHTML: livEventsPage(
-				livEventCard("EVE-AAA111", "Riordan", "LIV Beach", "livlasvegasbeach", futureDate, "/las-vegas/event/EVE-AAA111/riordan/", ""),
-			),
-			expectedEventCount: 0,
-			description:        "Should return no events when only the dayclub has events",
+			mockPages: []mockLivSpeakeasyPage{
+				{hasMore: true, events: []mockLivSpeakeasyEvent{{"EVE-AAA111", "Beltran", "LIV Las Vegas", futureUTC, ""}}},
+			},
+			expectedEventCount: 1,
+			description:        "Should stop paging instead of looping forever",
 		},
 	}
 
@@ -237,10 +234,19 @@ func TestScrapeLivForEdmEvents_Negative(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Log(tt.description)
 
-			server := newMockLivServer(tt.statusCode, tt.mockHTML)
+			var server *httptest.Server
+			if tt.mockPages != nil {
+				server = newMockLivSpeakeasyServer(t, tt.statusCode, tt.mockPages)
+			} else {
+				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "text/html; charset=utf-8")
+					w.WriteHeader(tt.statusCode)
+					w.Write([]byte(tt.rawBody))
+				}))
+			}
 			defer server.Close()
 
-			events := scrapeLivForEdmEvents(server.URL + "/las-vegas/events/")
+			events := scrapeLivForEdmEvents(server.URL + "/discovery?tab=events&search=LIV%20Las%20Vegas")
 
 			if len(events) != tt.expectedEventCount {
 				t.Errorf("%s: Expected %d events, got %d", tt.description, tt.expectedEventCount, len(events))
@@ -249,33 +255,61 @@ func TestScrapeLivForEdmEvents_Negative(t *testing.T) {
 	}
 }
 
-// Helpers
+// Helper types
 
-func newMockLivServer(statusCode int, body string) *httptest.Server {
+type mockLivSpeakeasyEvent struct {
+	uniqueId      string
+	title         string
+	venueName     string
+	startDateTime string
+	flyerKey      string
+}
+
+type mockLivSpeakeasyPage struct {
+	hasMore bool
+	events  []mockLivSpeakeasyEvent
+}
+
+// Serves the pages in order, repeating the last one if the scraper keeps asking
+func newMockLivSpeakeasyServer(t *testing.T, statusCode int, pages []mockLivSpeakeasyPage) *httptest.Server {
+	requestCount := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+		if r.URL.Query().Get("startDate") == "" || r.URL.Query().Get("endDate") == "" {
+			t.Errorf("Expected startDate and endDate query params, got %s", r.URL.RawQuery)
+		}
+
+		page := pages[len(pages)-1]
+		if requestCount < len(pages) {
+			page = pages[requestCount]
+		}
+		requestCount++
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(statusCode)
-		w.Write([]byte(body))
+		w.Write([]byte(livSpeakeasyPage(t, page)))
 	}))
 }
 
-func livEventsPage(cards ...string) string {
-	return `<html><body><div class="lvw-events-view lvw-events-view-agenda"><div class="lvw-agenda-default">` +
-		strings.Join(cards, "") +
-		`</div></div></body></html>`
-}
-
-// Mirrors the card markup on https://www.livnightclub.com/las-vegas/events/
-func livEventCard(eventId, name, venueName, venueKey, date, href, imageUrl string) string {
-	return fmt.Sprintf(`<a class="lvw-event-list-item lvw-venuekey-%[4]s lvw-event-agenda-box livlv-event-card"
-	href="%[6]s" data-eventcode="%[1]s"
-	data-liv-event-id="%[1]s"
-	data-liv-event-name="%[2]s"
-	data-liv-venue-name="%[3]s"
-	data-liv-venue-key="%[4]s"
-	data-liv-event-date="%[5]s"
-	aria-label="%[2]s">
-		<img decoding="async" src="%[7]s" alt="%[2]s - Flyer" loading="lazy">
-		<div class="livlv-event-related-card__meta"><div><h3>%[2]s</h3><small>%[3]s | 10:30pm</small></div></div>
-	</a>`, eventId, name, venueName, venueKey, date, href, imageUrl)
+// Mirrors the __NEXT_DATA__ on https://speakeasygo.com/discovery?tab=events
+func livSpeakeasyPage(t *testing.T, page mockLivSpeakeasyPage) string {
+	events := []map[string]any{}
+	for _, e := range page.events {
+		events = append(events, map[string]any{
+			"uniqueId":      e.uniqueId,
+			"title":         e.title,
+			"startDateTime": e.startDateTime,
+			"flyer":         map[string]any{"key": e.flyerKey},
+			"venue":         map[string]any{"name": e.venueName, "city": "Las Vegas", "timezone": "America/Los_Angeles"},
+		})
+	}
+	nextData, err := json.Marshal(map[string]any{
+		"props": map[string]any{
+			"pageProps": map[string]any{"events": events, "eventsHasMore": page.hasMore},
+		},
+		"page": "/discovery",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf(`<html><body><div id="__next"></div><script id="__NEXT_DATA__" type="application/json">%s</script></body></html>`, nextData)
 }
