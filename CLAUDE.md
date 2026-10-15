@@ -45,6 +45,7 @@ The application requires these environment variables to run:
    - Calls `getEdmEventsFromAllLasVegas()` to aggregate events from all venues
    - Deletes all existing documents in Firestore collection
    - Inserts newly scraped events in batch
+   - Records the scrape time in `meta/{COLLECTION_NAME}` (`lastUpdated`), only after the insert succeeds
 3. **fetchEdmEventsHelper.go** - Aggregates events from all venue scrapers
 
 ### Venue Scrapers
@@ -82,6 +83,8 @@ type EdmEvent struct {
 **SnippetModel** (addEdmEventsToFirestore.go):
 - `InsertMany()` - Batch writes events using Firestore BulkWriter
 - `DeleteMany()` - Clears collection using batch delete operations
+- `SetLastUpdated()` - Writes `{ lastUpdated }` to `meta/{COLLECTION_NAME}`; the API serves it at `/find-edm/last-updated`
+- BulkWriter job results are checked, so any failed write fails the run
 - Uses Firestore client with database-specific connection
 
 ### Utility Functions
